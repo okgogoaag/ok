@@ -1,0 +1,676 @@
+local LocalPlayer = game:GetService('Players').LocalPlayer;
+local Mouse = LocalPlayer:GetMouse();
+local InputService = game:GetService('UserInputService');
+local TextService = game:GetService('TextService');
+local TweenService = game:GetService('TweenService');
+local CoreGui = game:GetService('CoreGui') or game:GetService('Players').LocalPlayer:WaitForChild('PlayerGui');
+
+local ProtectGui = protectgui or (syn and syn.protect_gui) or (function(gui) return gui end);
+
+local function create_invisible_button(parent)
+	local button=Instance.new('TextButton')
+	button.Name = "InputCaptureButton"
+	button.Size=UDim2.new(1,0,1,0)
+	button.BackgroundTransparency=1
+	button.TextTransparency=1
+	button.Text=""
+	button.Parent=parent
+	button.ZIndex = parent.ZIndex + 1
+	return button
+end
+
+local function scrolling_connect(scrollframe)
+	task.spawn(function()
+		local padding = 10
+		local UIListLayout = scrollframe:WaitForChild('UIListLayout',9999999)
+        if not UIListLayout then return end
+
+		local function updateCanvasSize()
+			scrollframe.CanvasSize=UDim2.new(0,0,0,UIListLayout.AbsoluteContentSize.Y + padding)
+		end
+		
+		updateCanvasSize()
+		UIListLayout:GetPropertyChangedSignal('AbsoluteContentSize'):Connect(updateCanvasSize)
+	end)
+end
+
+local function GetImageData(name,image)
+	name = tostring(name or "ADS"):lower()
+	local SPRITESHEET_IMAGE = "rbxassetid://3926305904"
+
+	local data = {
+		ads = { RectOffset = Vector2.new(205,565), RectSize = Vector2.new(35,35) },
+		list = { RectOffset = Vector2.new(485,205), RectSize = Vector2.new(35,35) },
+		folder = { RectOffset = Vector2.new(805,45), RectSize = Vector2.new(35,35) },
+		earth = { RectOffset = Vector2.new(604,324), RectSize = Vector2.new(35,35) },
+		locked = { RectOffset = Vector2.new(524, 644), RectSize = Vector2.new(35,35) },
+		home = { RectOffset = Vector2.new(964, 205), RectSize = Vector2.new(35,35) },
+		close = { RectOffset = Vector2.new(284, 204), RectSize = Vector2.new(36, 36) },
+		mouse = { ID = "rbxassetid://3515393063" },
+		user = { ID = "rbxassetid://10494577250" },
+	}
+
+	local imgData = data[name]
+	if imgData then
+		image.Image = imgData.ID or SPRITESHEET_IMAGE
+		if imgData.RectOffset then image.ImageRectOffset = imgData.RectOffset end
+		if imgData.RectSize then image.ImageRectSize = imgData.RectSize end
+	end
+end
+
+local NEVERLOSE = {
+	auto_function = {},
+	Themes = {
+		BlackgroundColor = Color3.fromRGB(43, 43, 43),
+		BlackColor = Color3.fromRGB(16, 16, 16),
+		HeaderColor = Color3.fromRGB(47, 47, 47),
+		TraceColor = Color3.fromRGB(100, 100, 100),
+		MainColor = Color3.fromRGB(255, 140, 0),
+		MainColorDrop = Color3.fromRGB(65, 54, 31),
+		SectionColor = Color3.fromRGB(26, 26, 26),
+		StrokeColor = Color3.fromRGB(50, 50, 50),
+		ButtonBlackgroundColor = Color3.fromRGB(26, 26, 26)
+	},
+	_Version="11.B-FINAL",
+	_Name="NEVERLOSE"
+}
+
+function NEVERLOSE:Theme(name)
+	name = tostring(name or "original"):lower()
+	if name == "original" then
+		NEVERLOSE.Themes.BlackgroundColor = Color3.fromRGB(1, 17, 33)
+		NEVERLOSE.Themes.BlackColor = Color3.fromRGB(9, 9, 19)
+		NEVERLOSE.Themes.HeaderColor = Color3.fromRGB(7, 7, 17)
+		NEVERLOSE.Themes.TraceColor = Color3.fromRGB(0, 34, 44)
+		NEVERLOSE.Themes.MainColor = Color3.fromRGB(19, 176, 243)
+		NEVERLOSE.Themes.MainColorDrop = Color3.fromRGB(3, 6, 25)
+		NEVERLOSE.Themes.SectionColor = Color3.fromRGB(0, 17, 35)
+		NEVERLOSE.Themes.StrokeColor = Color3.fromRGB(3, 35, 50)
+		NEVERLOSE.Themes.ButtonBlackgroundColor = Color3.fromRGB(2, 5, 22)
+	end
+	if name == "nightly" then
+		NEVERLOSE.Themes.BlackgroundColor = Color3.fromRGB(43, 43, 43)
+		NEVERLOSE.Themes.BlackColor = Color3.fromRGB(16, 16, 16)
+		NEVERLOSE.Themes.HeaderColor = Color3.fromRGB(47, 47, 47)
+		NEVERLOSE.Themes.TraceColor = Color3.fromRGB(100, 100, 100)
+		NEVERLOSE.Themes.MainColor = Color3.fromRGB(255, 140, 0)
+		NEVERLOSE.Themes.MainColorDrop = Color3.fromRGB(65, 54, 31)
+		NEVERLOSE.Themes.SectionColor = Color3.fromRGB(26, 26, 26)
+		NEVERLOSE.Themes.StrokeColor = Color3.fromRGB(50, 50, 50)
+		NEVERLOSE.Themes.ButtonBlackgroundColor = Color3.fromRGB(26, 26, 26)
+	end
+	if name == "dark" then
+		NEVERLOSE.Themes.BlackgroundColor = Color3.fromRGB(37, 37, 37)
+		NEVERLOSE.Themes.BlackColor = Color3.fromRGB(8, 8, 8)
+		NEVERLOSE.Themes.HeaderColor = Color3.fromRGB(8, 8, 8)
+		NEVERLOSE.Themes.TraceColor = Color3.fromRGB(25, 25, 25)
+		NEVERLOSE.Themes.MainColor = Color3.fromRGB(0, 172, 247)
+		NEVERLOSE.Themes.MainColorDrop = Color3.fromRGB(64, 65, 67)
+		NEVERLOSE.Themes.SectionColor = Color3.fromRGB(13, 13, 13)
+		NEVERLOSE.Themes.StrokeColor = Color3.fromRGB(28, 28, 28)
+		NEVERLOSE.Themes.ButtonBlackgroundColor = Color3.fromRGB(13, 13, 13)
+	end
+end
+
+function NEVERLOSE:AddWindow(NameScriptHub,Text,UICustomSize)
+	local WindowFunctinos={}
+	local isMinimized=false
+	local defaultSize=UICustomSize or UDim2.new(0.35, 0, 0.5, 0)
+	local Tabs={}
+
+	local ScreenGui = Instance.new("ScreenGui")
+	local Frame = Instance.new("Frame")
+	local UICorner = Instance.new("UICorner")
+	local Frame_2 = Instance.new("Frame")
+	local UICorner_2 = Instance.new("UICorner")
+	local Frame_3 = Instance.new("Frame")
+	local UICorner_3 = Instance.new("UICorner")
+	local DropShadow = Instance.new("ImageLabel")
+	local HeadName = Instance.new("TextLabel")
+	local TabButtons = Instance.new("ScrollingFrame")
+	local UIListLayout = Instance.new("UIListLayout")
+	local TabHose = Instance.new("Frame")
+	local outlo = Instance.new("Frame")
+	local UICorner_4 = Instance.new("UICorner")
+	local outlo_2 = Instance.new("Frame")
+	local UICorner_5 = Instance.new("UICorner")
+	local outlo_3 = Instance.new("Frame")
+	local UICorner_6 = Instance.new("UICorner")
+	local UserData = Instance.new("Frame")
+	local UICorner_7 = Instance.new("UICorner")
+	local UserImage = Instance.new("ImageLabel")
+	local UICorner_8 = Instance.new("UICorner")
+	local UserName = Instance.new("TextLabel")
+	local headd2text
+	local oldPositionBeforeMinimize
+	local isVisible = true
+
+	local MainContent = {Frame_2, TabButtons, TabHose, outlo, outlo_2, outlo_3, UserData}
+
+	ScreenGui:GetPropertyChangedSignal('Enabled'):Connect(function()
+		if not ScreenGui.Enabled and isVisible then ScreenGui.Enabled=true end
+	end)
+
+	if Text then
+		local TextLabel = Instance.new("TextLabel")
+		TextLabel.Parent = Frame
+		TextLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		TextLabel.BackgroundTransparency = 1.000
+		TextLabel.Position = UDim2.new(0.243, 0, 0.025, 0)
+		TextLabel.Size = UDim2.new(0.6, 0, 0.062, 0)
+		TextLabel.ZIndex = 5
+		TextLabel.Font = Enum.Font.SourceSansBold
+		TextLabel.Text = Text or" "
+		TextLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+		TextLabel.TextScaled = true
+		TextLabel.TextStrokeColor3 = Color3.fromRGB(0, 255, 255)
+		TextLabel.TextStrokeTransparency = 0.900
+		TextLabel.TextWrapped = true
+		TextLabel.TextXAlignment = Enum.TextXAlignment.Left
+		TextLabel.RichText=true
+		headd2text=TextLabel
+		table.insert(MainContent, headd2text)
+	end
+
+	function WindowFunctinos:SetEnabled(enabled)
+		isVisible = enabled
+		ScreenGui.Enabled = enabled
+		local goalTrans = enabled and 0 or 1
+		local tween = TweenService:Create(Frame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {BackgroundTransparency = goalTrans})
+		tween:Play()
+	end
+
+	InputService.InputBegan:Connect(function(input, gpe)
+		if gpe then return end
+		if input.KeyCode == Enum.KeyCode.RightControl then WindowFunctinos:SetEnabled(not isVisible) end
+	end)
+
+	local function SetMinimized(isMin)
+		isMinimized = isMin
+		local animTime = 0.4
+
+		for _, v in ipairs(MainContent) do v.Visible = not isMin end
+
+		if isMin then
+			oldPositionBeforeMinimize = Frame.Position
+			TweenService:Create(Frame, TweenInfo.new(animTime, Enum.EasingStyle.Quint), {Size = UDim2.new(0, 150, 0, 40)}):Play()
+			TweenService:Create(HeadName, TweenInfo.new(animTime, Enum.EasingStyle.Quint), {Size=UDim2.new(0.9, 0,0.5, 0), Position=UDim2.new(0.05,0,0.25,0)}):Play()
+		else
+			TweenService:Create(Frame, TweenInfo.new(animTime, Enum.EasingStyle.Quint), {Size = defaultSize, Position = oldPositionBeforeMinimize or UDim2.new(0.5, 0, 0.5, 0)}):Play()
+			TweenService:Create(HeadName, TweenInfo.new(animTime, Enum.EasingStyle.Quint), {Size=UDim2.new(0.205, 0, 0.133, 0), Position=UDim2.new(0.01, 0, 0.01, 0)}):Play()
+		end
+	end
+
+	task.spawn(function()
+		local HeaderButtonsFrame = Instance.new("Frame", Frame)
+		HeaderButtonsFrame.BackgroundTransparency = 1
+		HeaderButtonsFrame.AnchorPoint = Vector2.new(1,0)
+		HeaderButtonsFrame.Position = UDim2.new(0.99, 0, 0, 5)
+		HeaderButtonsFrame.Size = UDim2.new(0, 50, 0, 20)
+		HeaderButtonsFrame.ZIndex = 10
+		local UIListLayout = Instance.new("UIListLayout", HeaderButtonsFrame)
+		UIListLayout.FillDirection = Enum.FillDirection.Horizontal
+		UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+		UIListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+		UIListLayout.Padding = UDim.new(0, 5)
+
+		local MinimizeButton = Instance.new("ImageButton")
+		MinimizeButton.Parent = HeaderButtonsFrame
+		MinimizeButton.BackgroundTransparency = 1.000
+		MinimizeButton.Size = UDim2.new(0, 18, 0, 18)
+		MinimizeButton.ZIndex = 11
+		MinimizeButton.Image = "rbxassetid://3926305904"
+		MinimizeButton.ImageRectOffset = Vector2.new(4, 4)
+		MinimizeButton.ImageRectSize = Vector2.new(24, 24)
+
+		local CloseButton = Instance.new("ImageButton")
+		CloseButton.Parent = HeaderButtonsFrame
+		CloseButton.BackgroundTransparency = 1.000
+		CloseButton.Size = UDim2.new(0, 18, 0, 18)
+		CloseButton.ZIndex = 11
+		GetImageData("close", CloseButton)
+		CloseButton.ImageColor3 = Color3.fromRGB(255, 80, 80)
+
+		MinimizeButton.MouseButton1Click:Connect(function() SetMinimized(not isMinimized) end)
+		CloseButton.MouseButton1Click:Connect(function() WindowFunctinos:SetEnabled(false) end)
+	end)
+
+	local dragToggle = nil; local dragSpeed = 0.1; local dragStart = nil; local startPos = nil
+	local function updateDrag(input)
+		local delta = input.Position - dragStart
+		local position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		TweenService:Create(Frame, TweenInfo.new(dragSpeed), {Position = position}):Play()
+	end
+
+	Frame_3.InputBegan:Connect(function(input)
+		if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not isMinimized then
+			dragToggle = true; dragStart = input.Position; startPos = Frame.Position
+			input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragToggle = false end end)
+		end
+	end)
+	Frame.InputBegan:Connect(function(input)
+		if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and isMinimized then
+			dragToggle = true; dragStart = input.Position; startPos = Frame.Position
+			input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragToggle = false end end)
+		end
+	end)
+	InputService.InputChanged:Connect(function(input)
+		if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragToggle then updateDrag(input) end
+	end)
+
+	ScreenGui.Parent = CoreGui
+	ScreenGui.ResetOnSpawn = false
+	ScreenGui.IgnoreGuiInset = true
+	ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+	ProtectGui(ScreenGui)
+
+	Frame.Parent = ScreenGui
+	Frame.Active = true
+	Frame.AnchorPoint = Vector2.new(0.5, 0.5)
+	Frame.BackgroundColor3 = NEVERLOSE.Themes.BlackgroundColor
+	Frame.BackgroundTransparency = 1
+	Frame.Position = UDim2.new(0.5, 0, -0.5, 0)
+	Frame.Size = defaultSize
+	Frame.ZIndex = 2
+	Frame.ClipsDescendants=true
+	TweenService:Create(Frame,TweenInfo.new(0.8,Enum.EasingStyle.Bounce),{Position=UDim2.new(0.5,0,0.5,0), BackgroundTransparency = 0}):Play()
+
+	UICorner.Parent = Frame
+	Frame_2.Parent = Frame
+	Frame_2.BackgroundColor3 = NEVERLOSE.Themes.BlackColor
+	Frame_2.Position = UDim2.new(0.223214373, 0, 0, 0)
+	Frame_2.Size = UDim2.new(0.774634778, 0, 1, 0)
+	Frame_2.ZIndex = 2
+	UICorner_2.CornerRadius = UDim.new(0, 4)
+	UICorner_2.Parent = Frame_2
+	Frame_3.Parent = Frame
+	Frame_3.BackgroundColor3 = NEVERLOSE.Themes.HeaderColor
+	Frame_3.BackgroundTransparency = 0.900
+	Frame_3.Position = UDim2.new(0.223214373, 0, 0, 0)
+	Frame_3.Size = UDim2.new(0.774999976, 0, 0.140000001, 0)
+	Frame_3.ZIndex = 4
+	UICorner_3.CornerRadius = UDim.new(0, 4)
+	UICorner_3.Parent = Frame_3
+	DropShadow.Name = "DropShadow"
+	DropShadow.Parent = Frame
+	DropShadow.AnchorPoint = Vector2.new(0.5, 0.5)
+	DropShadow.BackgroundTransparency = 1.000
+	DropShadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+	DropShadow.Size = UDim2.new(1, 15, 1, 15)
+	DropShadow.ZIndex = 1
+	DropShadow.Image = "rbxassetid://6014261993"
+	DropShadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+	DropShadow.ImageTransparency = 0.860
+	DropShadow.ScaleType = Enum.ScaleType.Slice
+	DropShadow.SliceCenter = Rect.new(49, 49, 450, 450)
+	HeadName.Name = "HeadName"
+	HeadName.Parent = Frame
+	HeadName.BackgroundTransparency = 1.000
+	HeadName.Position = UDim2.new(0.0100000342, 0, 0.010000146, 0)
+	HeadName.Size = UDim2.new(0.205458686, 0, 0.133462012, 0)
+	HeadName.ZIndex = 4
+	HeadName.Font = Enum.Font.SourceSansBold
+	HeadName.Text = NameScriptHub or "NEVERLOSE"
+	HeadName.TextColor3 = Color3.fromRGB(255, 255, 255)
+	HeadName.TextScaled = true
+	HeadName.TextStrokeColor3 = Color3.fromRGB(0, 251, 255)
+	HeadName.TextStrokeTransparency = 0.720
+	HeadName.TextWrapped = true
+	TabButtons.Name = "TabButtons"
+	TabButtons.Parent = Frame
+	TabButtons.Active = true
+	TabButtons.BackgroundTransparency = 1.000
+	TabButtons.Position = UDim2.new(0.00760957832, 0, 0.143462211, 0)
+	TabButtons.Size = UDim2.new(0.20784913, 0, 0.753122032, 0)
+	TabButtons.ZIndex = 5
+	TabButtons.CanvasSize = UDim2.new(0, 0, 0, 0)
+	TabButtons.ScrollBarThickness = 2
+	UIListLayout.Parent = TabButtons
+	UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	UIListLayout.Padding = UDim.new(0, 4)
+	scrolling_connect(TabButtons)
+	TabHose.Name = "TabHose"
+	TabHose.Parent = Frame
+	TabHose.BackgroundTransparency = 1.000
+	TabHose.Position = UDim2.new(0.223214373, 0, 0.143462211, 0)
+	TabHose.Size = UDim2.new(0.774635077, 0, 0.856537759, 0)
+	TabHose.ZIndex = 5
+	outlo.Name = "outlo"
+	outlo.Parent = Frame
+	outlo.AnchorPoint = Vector2.new(1, 0)
+	outlo.BackgroundColor3 = NEVERLOSE.Themes.TraceColor
+	outlo.BackgroundTransparency = 0.700
+	outlo.Position = UDim2.new(1, 0, 0.136999995, 0)
+	outlo.Size = UDim2.new(0.774999976, 0, 0, 1)
+	outlo.ZIndex = 4
+	UICorner_4.CornerRadius = UDim.new(0, 4)
+	UICorner_4.Parent = outlo
+	outlo_2.Name = "outlo"
+	outlo_2.Parent = Frame
+	outlo_2.AnchorPoint = Vector2.new(1, 0.5)
+	outlo_2.BackgroundColor3 = NEVERLOSE.Themes.TraceColor
+	outlo_2.BackgroundTransparency = 0.700
+	outlo_2.Position = UDim2.new(0.223908007, 0, 0.5, 0)
+	outlo_2.Size = UDim2.new(0, 1, 1, 0)
+	outlo_2.ZIndex = 4
+	UICorner_5.CornerRadius = UDim.new(0, 4)
+	UICorner_5.Parent = outlo_2
+	outlo_3.Name = "outlo"
+	outlo_3.Parent = Frame
+	outlo_3.AnchorPoint = Vector2.new(1, 0)
+	outlo_3.BackgroundColor3 = NEVERLOSE.Themes.TraceColor
+	outlo_3.BackgroundTransparency = 0.700
+	outlo_3.Position = UDim2.new(0.223908007, 0, 0.923109949, 0)
+	outlo_3.Size = UDim2.new(0.223908007, 0, 0, 1)
+	outlo_3.ZIndex = 4
+	UICorner_6.CornerRadius = UDim.new(0, 4)
+	UICorner_6.Parent = outlo_3
+	UserData.Name = "UserData"
+	UserData.Parent = Frame
+	UserData.BackgroundTransparency = 1.000
+	UserData.Position = UDim2.new(-0.000179085735, 0, 0.926525652, 0)
+	UserData.Size = UDim2.new(0.225179195, 0, 0.0718210712, 0)
+	UserData.ZIndex = 5
+	UICorner_7.CornerRadius = UDim.new(0, 2)
+	UICorner_7.Parent = UserData
+	UserImage.Name = "UserImage"
+	UserImage.Parent = UserData
+	UserImage.AnchorPoint = Vector2.new(0.5, 0.5)
+	UserImage.BackgroundTransparency = 1.000
+	UserImage.Position = UDim2.new(0.150000006, 0, 0.5, 0)
+	UserImage.Size = UDim2.new(0.949999988, 0, 0.949999988, 0)
+	UserImage.SizeConstraint = Enum.SizeConstraint.RelativeYY
+	UserImage.ZIndex = 5
+	pcall(function() UserImage.Image = game:GetService('Players'):GetUserThumbnailAsync(LocalPlayer.UserId,Enum.ThumbnailType.HeadShot,Enum.ThumbnailSize.Size150x150) end)
+	UICorner_8.CornerRadius = UDim.new(0.5, 0)
+	UICorner_8.Parent = UserImage
+	UserName.Name = "UserName"
+	UserName.Parent = UserData
+	UserName.AnchorPoint = Vector2.new(0, 0.5)
+	UserName.BackgroundTransparency = 1.000
+	UserName.Position = UDim2.new(0.31400001, 0, 0.5, 0)
+	UserName.Size = UDim2.new(0.717000008, 0, 0.649999976, 0)
+	UserName.ZIndex = 5
+	UserName.Font = Enum.Font.SourceSansSemibold
+	UserName.Text = LocalPlayer.DisplayName or "User"
+	UserName.TextColor3 = Color3.fromRGB(255, 255, 255)
+	UserName.TextScaled = true
+	UserName.TextXAlignment = Enum.TextXAlignment.Left
+
+	function WindowFunctinos:AddTab(TabNameString,IconType)
+		local TabFunctions ={}
+		local TabButton = Instance.new("Frame"); local UIAspectRatioConstraint = Instance.new("UIAspectRatioConstraint"); local UICorner = Instance.new("UICorner"); local Image = Instance.new("ImageLabel"); local UICorner_2 = Instance.new("UICorner"); local Label = Instance.new("TextLabel")
+		local cc = NEVERLOSE.Themes.MainColor; if cc == Color3.fromRGB(0, 172, 247) then cc = NEVERLOSE.Themes.BlackgroundColor end
+		TabButton.Name = "TabButton"; TabButton.Parent = TabButtons; TabButton.BackgroundColor3 = cc; TabButton.BackgroundTransparency = 1; TabButton.Size = UDim2.new(0.899999976, 0, 0.5, 0); TabButton.ZIndex = 5
+		UIAspectRatioConstraint.Parent = TabButton; UIAspectRatioConstraint.AspectRatio = 4.000; UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize
+		UICorner.CornerRadius = UDim.new(0, 3); UICorner.Parent = TabButton
+		Image.Name = "Image"; Image.Parent = TabButton; Image.AnchorPoint = Vector2.new(0, 0.5); Image.BackgroundTransparency = 1.000; Image.Position = UDim2.new(0.0149999997, 0, 0.5, 0); Image.Size = UDim2.new(0.850000024, 0, 0.800000012, 0); Image.SizeConstraint = Enum.SizeConstraint.RelativeYY; Image.ZIndex = 5; Image.ImageColor3 = NEVERLOSE.Themes.MainColor; GetImageData(tostring(IconType),Image)
+		UICorner_2.CornerRadius = UDim.new(0, 3); UICorner_2.Parent = Image
+		Label.Name = "Label"; Label.Parent = TabButton; Label.AnchorPoint = Vector2.new(0.5, 0.5); Label.BackgroundTransparency = 1.000; Label.Position = UDim2.new(0.640507042, 0, 0.500000238, 0); Label.Size = UDim2.new(0.718986034, 0, 0.600000024, 0); Label.ZIndex = 5; Label.Font = Enum.Font.SourceSansBold; Label.Text = TabNameString or "Index.json"; Label.TextColor3 = Color3.fromRGB(255, 255, 255); Label.TextScaled = true; Label.TextXAlignment = Enum.TextXAlignment.Left; Label.TextYAlignment = Enum.TextYAlignment.Top
+
+		local Tab = Instance.new("Frame"); local Left = Instance.new("ScrollingFrame"); local UIListLayout = Instance.new("UIListLayout"); local Right = Instance.new("ScrollingFrame"); local UIListLayout_2 = Instance.new("UIListLayout")
+		Tab.Name = "Tab"; Tab.Parent = TabHose; Tab.AnchorPoint = Vector2.new(0.5, 0.5); Tab.BackgroundTransparency = 1.000; Tab.ClipsDescendants = true; Tab.Position = UDim2.new(0.5, 0, 0.5, 0); Tab.Size = UDim2.new(0.99000001, 0, 0.99000001, 0); Tab.ZIndex = 6
+		Left.Name = "Left"; Left.Parent = Tab; Left.Active = true; Left.AnchorPoint = Vector2.new(0, 0.5); Left.BackgroundTransparency = 1.000; Left.ClipsDescendants = false; Left.Position = UDim2.new(0, 0, 0.5, 0); Left.Size = UDim2.new(0.499000001, 0, 0.980000019, 0); Left.ZIndex = 5; Left.ScrollBarThickness = 2; Left.VerticalScrollBarPosition = Enum.VerticalScrollBarPosition.Left
+		UIListLayout.Parent = Left; UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder; UIListLayout.Padding = UDim.new(0, 5)
+		Right.Name = "Right"; Right.Parent = Tab; Right.Active = true; Right.AnchorPoint = Vector2.new(1, 0.5); Right.BackgroundTransparency = 1.000; Right.ClipsDescendants = false; Right.Position = UDim2.new(1, 0, 0.5, 0); Right.Size = UDim2.new(0.499000001, 0, 0.980000019, 0); Right.ZIndex = 5; Right.ScrollBarThickness = 2
+		UIListLayout_2.Parent = Right; UIListLayout_2.HorizontalAlignment = Enum.HorizontalAlignment.Center; UIListLayout_2.SortOrder = Enum.SortOrder.LayoutOrder; UIListLayout_2.Padding = UDim.new(0, 5)
+		scrolling_connect(Right); scrolling_connect(Left)
+
+		local function tabcall(val)
+			if val then
+				if not Tab.Visible then Tab.Position=UDim2.new(0.5,0,0,0); Tab.Size=UDim2.new(0.85, 0, 0, 0) end
+				Tab.Visible=true
+				TweenService:Create(Tab,TweenInfo.new(.3,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{Position = UDim2.new(0.5, 0, 0.5, 0)}):Play()
+				TweenService:Create(Tab,TweenInfo.new(.75,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{Size = UDim2.new(0.99000001, 0, 0.99000001, 0)}):Play()
+				TweenService:Create(TabButton,TweenInfo.new(0.3),{BackgroundTransparency=0.6}):Play()
+			else
+				TweenService:Create(Tab,TweenInfo.new(.5),{Position = UDim2.new(0.5, 0, 1.5, 0)}):Play()
+				TweenService:Create(TabButton,TweenInfo.new(0.3),{BackgroundTransparency=1}):Play()
+				task.delay(0.5, function() if Tab.Position.Y.Scale > 1 then Tab.Visible = false end end)
+			end
+		end
+
+		if #Tabs==0 then tabcall(true) else tabcall(false) end
+		table.insert(Tabs,{Tab,tabcall})
+
+		create_invisible_button(TabButton).MouseButton1Click:Connect(function()
+			for i,v in ipairs(Tabs) do v[2](v[1]==Tab) end
+		end)
+
+		function TabFunctions:AddSection(SectionName,parentname)
+			parentname = parentname or "left"
+			local Section = Instance.new("Frame"); local UICorner = Instance.new("UICorner"); local UIStroke = Instance.new("UIStroke"); local Header = Instance.new("TextLabel"); local UIListLayout = Instance.new("UIListLayout"); local lay = Instance.new("Frame"); local UICorner_2 = Instance.new("UICorner")
+
+			Section.Name = "Section"; Section.Parent = (parentname=="left"and Left) or (parentname=="right"and Right) or nil; Section.BackgroundColor3 = NEVERLOSE.Themes.SectionColor; Section.Size = UDim2.new(0.970000029, 0, 0, 30); Section.ZIndex = 5; Section.AutomaticSize = Enum.AutomaticSize.Y; Section.ClipsDescendants = true
+			UICorner.CornerRadius = UDim.new(0, 3); UICorner.Parent = Section
+			UIStroke.Color = NEVERLOSE.Themes.StrokeColor; UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; UIStroke.Parent = Section
+			UIListLayout.Parent = Section; UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder; UIListLayout.Padding = UDim.new(0, 4); UIListLayout.FlexDirection = Enum.FlexDirection.Column; UIListLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+			Header.Name = "Header"; Header.Parent = Section; Header.LayoutOrder = -2; Header.BackgroundColor3 = NEVERLOSE.Themes.SectionColor; Header.Size = UDim2.new(1, 0, 0, 25); Header.ZIndex = 6; Header.Font = Enum.Font.SourceSansSemibold; Header.Text = "  " .. (SectionName or "Section"); Header.TextColor3 = Color3.fromRGB(255, 255, 255); Header.TextScaled = true; Header.TextXAlignment = Enum.TextXAlignment.Left
+			lay.Name = "lay"; lay.Parent = Section; lay.LayoutOrder = -1; lay.BackgroundColor3 = NEVERLOSE.Themes.StrokeColor; lay.Size = UDim2.new(0.95, 0, 0, 1); lay.ZIndex = 5
+			UICorner_2.CornerRadius = UDim.new(0, 3); UICorner_2.Parent = lay
+
+			local sectionfunc = {}
+
+			function sectionfunc:AddButton(ButtonName,callback)
+				callback=callback or function() end
+				local Button = Instance.new("Frame"); local UIAspectRatioConstraint = Instance.new("UIAspectRatioConstraint"); local UICorner = Instance.new("UICorner"); local LabelText = Instance.new("TextLabel"); local UIStroke = Instance.new("UIStroke")
+				Button.Name = "Button"; Button.Parent = Section; Button.BackgroundColor3 = NEVERLOSE.Themes.ButtonBlackgroundColor; Button.BackgroundTransparency = 0.550; Button.Size = UDim2.new(0.899999976, 0, 0, 0); Button.ZIndex = 5
+				UIAspectRatioConstraint.Parent = Button; UIAspectRatioConstraint.AspectRatio = 7.000; UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize
+				UICorner.CornerRadius = UDim.new(0, 3); UICorner.Parent = Button
+				LabelText.Name = "LabelText"; LabelText.Parent = Button; LabelText.AnchorPoint = Vector2.new(0.5, 0.5); LabelText.BackgroundTransparency = 1.000; LabelText.Position = UDim2.new(0.5, 0, 0.5, 0); LabelText.Size = UDim2.new(0.899999976, 0, 0.75, 0); LabelText.ZIndex = 6; LabelText.Font = Enum.Font.SourceSansSemibold; LabelText.Text = ButtonName or"Kill all"; LabelText.TextColor3 = Color3.fromRGB(255, 255, 255); LabelText.TextScaled = true; LabelText.TextTransparency = 0.300; LabelText.TextWrapped = true
+				UIStroke.Thickness = 0.500; UIStroke.Color = NEVERLOSE.Themes.StrokeColor; UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; UIStroke.Parent = Button
+				create_invisible_button(Button).MouseButton1Click:Connect(function() callback() end)
+				Button.MouseEnter:Connect(function() TweenService:Create(LabelText,TweenInfo.new(0.1),{TextTransparency=0}):Play() end)
+				Button.MouseLeave:Connect(function() TweenService:Create(LabelText,TweenInfo.new(0.1),{TextTransparency=0.3}):Play() end)
+				local button_func={}; function button_func:Fire(...) callback(...) end; function button_func:Text(a) LabelText.Text=tostring(a) end
+				return button_func
+			end
+
+			function sectionfunc:AddLabel(LabelNameString)
+				local Label = Instance.new("Frame"); local UIAspectRatioConstraint = Instance.new("UIAspectRatioConstraint"); local UICorner = Instance.new("UICorner"); local LabelText = Instance.new("TextLabel")
+				Label.Name = "Label"; Label.Parent = Section; Label.BackgroundTransparency = 1.000; Label.Size = UDim2.new(0.899999976, 0, 0.5, 0); Label.ZIndex = 5
+				UIAspectRatioConstraint.Parent = Label; UIAspectRatioConstraint.AspectRatio = 6.000; UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize
+				UICorner.Parent = Label
+				LabelText.Name = "LabelText"; LabelText.Parent = Label; LabelText.AnchorPoint = Vector2.new(0.5, 0.5); LabelText.BackgroundTransparency = 1.000; LabelText.Position = UDim2.new(0.5, 0, 0.5, 0); LabelText.Size = UDim2.new(1, 0, 0.649999976, 0); LabelText.ZIndex = 6; LabelText.Font = Enum.Font.SourceSansSemibold; LabelText.Text = LabelNameString or"Label"; LabelText.TextColor3 = Color3.fromRGB(255, 255, 255); LabelText.TextScaled = true; LabelText.TextTransparency = 0.300; LabelText.TextWrapped = true; LabelText.TextXAlignment = Enum.TextXAlignment.Left
+				local button_func = {}; function button_func:Text(a) LabelText.Text=tostring(a) end
+				return button_func
+			end
+
+			function sectionfunc:AddToggle(ToggleName,Default,callback)
+				callback=callback or function() end
+				local Toggle = Instance.new("Frame"); local UIAspectRatioConstraint = Instance.new("UIAspectRatioConstraint"); local UICorner = Instance.new("UICorner"); local LabelText = Instance.new("TextLabel"); local Effect = Instance.new("Frame"); local UICorner_2 = Instance.new("UICorner"); local Icon = Instance.new("Frame"); local UICorner_3 = Instance.new("UICorner")
+				Toggle.Name = "Toggle"; Toggle.Parent = Section; Toggle.BackgroundTransparency = 1.000; Toggle.Size = UDim2.new(0.899999976, 0, 0, 0); Toggle.ZIndex = 5
+				UIAspectRatioConstraint.Parent = Toggle; UIAspectRatioConstraint.AspectRatio = 7.000; UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize; UICorner.CornerRadius = UDim.new(0, 3); UICorner.Parent = Toggle
+				LabelText.Name = "LabelText"; LabelText.Parent = Toggle; LabelText.AnchorPoint = Vector2.new(0, 0.5); LabelText.BackgroundTransparency = 1.000; LabelText.Position = UDim2.new(0, 0, 0.5, 0); LabelText.Size = UDim2.new(0.7, 0, 0.75, 0); LabelText.ZIndex = 6; LabelText.Font = Enum.Font.SourceSansSemibold; LabelText.Text = ToggleName or "Label-Test"; LabelText.TextColor3 = Color3.fromRGB(255, 255, 255); LabelText.TextScaled = true; LabelText.TextWrapped = true; LabelText.TextXAlignment = Enum.TextXAlignment.Left
+				Effect.Name = "Effect"; Effect.Parent = Toggle; Effect.AnchorPoint = Vector2.new(1, 0.5); Effect.BackgroundColor3 = NEVERLOSE.Themes.MainColorDrop; Effect.Position = UDim2.new(1, 0, 0.5, 0); Effect.Size = UDim2.new(0.2, 0, 0.5, 0); Effect.ZIndex = 6
+				UICorner_2.CornerRadius = UDim.new(0.5, 0); UICorner_2.Parent = Effect
+				Icon.Name = "Icon"; Icon.Parent = Effect; Icon.AnchorPoint = Vector2.new(0.5, 0.5); Icon.BackgroundColor3 = NEVERLOSE.Themes.MainColor; Icon.Position = UDim2.new(0.75, 0, 0.5, 0); Icon.Size = UDim2.new(1, 0, 1, 0); Icon.SizeConstraint = Enum.SizeConstraint.RelativeYY; Icon.ZIndex = 7
+				UICorner_3.CornerRadius = UDim.new(0.5, 0); UICorner_3.Parent = Icon
+				local function toggleval(val,timea)
+					if val then TweenService:Create(LabelText,TweenInfo.new(timea),{TextTransparency=0}):Play(); TweenService:Create(Icon,TweenInfo.new(timea),{Position=UDim2.new(0.75,0,0.5,0),BackgroundColor3=NEVERLOSE.Themes.MainColor}):Play();
+					else TweenService:Create(LabelText,TweenInfo.new(timea),{TextTransparency=0.3}):Play(); TweenService:Create(Icon,TweenInfo.new(timea),{Position=UDim2.new(0.25,0,0.5,0),BackgroundColor3=Color3.fromRGB(194, 194, 194)}):Play(); end
+				end
+				toggleval(Default,0)
+				create_invisible_button(Toggle).MouseButton1Click:Connect(function() Default=not Default; toggleval(Default,0.1); callback(Default) end)
+				local button_func = {}; function button_func:Text(a) LabelText.Text=tostring(a) end; function button_func:Value(a) Default=a; toggleval(a,0.1); callback(a) end
+				return button_func
+			end
+
+			function sectionfunc:AddKeybind(KeybindNameString,Default,callback)
+				callback=callback or function() end
+				local function gt(a) if not a then return "None" else return a.Name end end
+				local Keybind = Instance.new("Frame"); local UIAspectRatioConstraint = Instance.new("UIAspectRatioConstraint"); local UICorner = Instance.new("UICorner"); local LabelText = Instance.new("TextLabel"); local BrindText = Instance.new("Frame"); local UICorner_2 = Instance.new("UICorner"); local UIStroke = Instance.new("UIStroke"); local ValueText = Instance.new("TextLabel")
+				Keybind.Name = "Keybind"; Keybind.Parent = Section; Keybind.BackgroundTransparency = 1.000; Keybind.Size = UDim2.new(0.899999976, 0, 0, 0); Keybind.ZIndex = 5
+				UIAspectRatioConstraint.Parent = Keybind; UIAspectRatioConstraint.AspectRatio = 7.000; UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize; UICorner.Parent = Keybind
+				LabelText.Name = "LabelText"; LabelText.Parent = Keybind; LabelText.AnchorPoint = Vector2.new(0, 0.5); LabelText.BackgroundTransparency = 1.000; LabelText.Position = UDim2.new(0, 0, 0.5, 0); LabelText.Size = UDim2.new(0.7, 0, 0.75, 0); LabelText.ZIndex = 6; LabelText.Font = Enum.Font.SourceSansSemibold; LabelText.Text = KeybindNameString or ''; LabelText.TextColor3 = Color3.fromRGB(255, 255, 255); LabelText.TextScaled = true; LabelText.TextWrapped = true; LabelText.TextXAlignment = Enum.TextXAlignment.Left; LabelText.TextTransparency=.3
+				BrindText.Name = "BrindText"; BrindText.Parent = Keybind; BrindText.AnchorPoint = Vector2.new(1, 0.5); BrindText.BackgroundColor3 = Color3.fromRGB(26, 26, 26); BrindText.BackgroundTransparency = 0.500; BrindText.Position = UDim2.new(1, 0, 0.5, 0); BrindText.Size = UDim2.new(0.25, 0, 0.7, 0); BrindText.ZIndex = 6; BrindText.AutomaticSize = Enum.AutomaticSize.X
+				UICorner_2.CornerRadius = UDim.new(0, 3); UICorner_2.Parent = BrindText
+				UIStroke.Thickness = 0.500; UIStroke.Color = NEVERLOSE.Themes.StrokeColor; UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; UIStroke.Parent = BrindText
+				ValueText.Name = "ValueText"; ValueText.Parent = BrindText; ValueText.AnchorPoint = Vector2.new(0.5, 0.5); ValueText.BackgroundTransparency = 1.000; ValueText.Position = UDim2.new(0.5, 0, 0.5, 0); ValueText.Size = UDim2.new(0, 50, 1, 0); ValueText.ZIndex = 6; ValueText.Font = Enum.Font.SourceSansSemibold; ValueText.Text = gt(Default); ValueText.TextColor3 = Color3.fromRGB(255, 255, 255); ValueText.TextScaled = true; ValueText.TextWrapped = true; ValueText.AutomaticSize = Enum.AutomaticSize.X
+				local UIMargin = Instance.new("UIPadding", ValueText); UIMargin.PaddingLeft = UDim.new(0,5); UIMargin.PaddingRight = UDim.new(0,5);
+				local Binding = false
+				create_invisible_button(BrindText).MouseButton1Click:Connect(function()
+					if Binding then return end; Binding = true; ValueText.Text = "..."
+					local targetloadded; local hook = InputService.InputBegan:Connect(function(is) if is.KeyCode ~= Enum.KeyCode.Unknown then targetloadded = is.KeyCode end end)
+					repeat task.wait() until targetloadded or not Binding
+					hook:Disconnect(); Binding =false
+					if targetloadded then ValueText.Text = gt(targetloadded); Default = targetloadded; callback(targetloadded) end
+				end)
+				local KeybindFunctions = {}; function KeybindFunctions:Text(a) LabelText.Text = tostring(a) end; function KeybindFunctions:Value(l) ValueText.Text = gt(l); Default = l; callback(l) end
+				return KeybindFunctions
+			end
+
+			function sectionfunc:AddSlider(SliderNameString,Min,Max,Default,callback)
+				Min=Min or 1; Max=Max or 100; Default=Default or Min; callback=callback or function() end
+				local Slider = Instance.new("Frame"); local UIAspectRatioConstraint = Instance.new("UIAspectRatioConstraint"); local UICorner = Instance.new("UICorner"); local LabelText = Instance.new("TextLabel"); local Box = Instance.new("Frame"); local UICorner_2 = Instance.new("UICorner"); local UIStroke = Instance.new("UIStroke"); local ValueText = Instance.new("TextLabel"); local MoveFrame = Instance.new("Frame"); local UICorner_3 = Instance.new("UICorner"); local Inline = Instance.new("Frame"); local UICorner_4 = Instance.new("UICorner"); local Cir = Instance.new("Frame"); local UICorner_5 = Instance.new("UICorner"); local InputFrame = Instance.new("Frame")
+				Slider.Name = "Slider"; Slider.Parent = Section; Slider.BackgroundTransparency = 1.000; Slider.Size = UDim2.new(0.899999976, 0, 0, 0); Slider.ZIndex = 5
+				UIAspectRatioConstraint.Parent = Slider; UIAspectRatioConstraint.AspectRatio = 7.000; UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize; UICorner.Parent = Slider
+				LabelText.Name = "LabelText"; LabelText.Parent = Slider; LabelText.AnchorPoint = Vector2.new(0, 0.5); LabelText.BackgroundTransparency = 1.000; LabelText.Position = UDim2.new(0, 0, 0.5, 0); LabelText.Size = UDim2.new(0.4, 0, 0.75, 0); LabelText.ZIndex = 6; LabelText.Font = Enum.Font.SourceSansSemibold; LabelText.Text = SliderNameString or "Control"; LabelText.TextColor3 = Color3.fromRGB(255, 255, 255); LabelText.TextScaled = true; LabelText.TextWrapped = true; LabelText.TextXAlignment = Enum.TextXAlignment.Left; LabelText.TextTransparency=.3
+				Box.Name = "Box"; Box.Parent = Slider; Box.AnchorPoint = Vector2.new(1, 0.5); Box.BackgroundColor3 = NEVERLOSE.Themes.ButtonBlackgroundColor; Box.BackgroundTransparency = 0.100; Box.Position = UDim2.new(1, 0, 0.5, 0); Box.Size = UDim2.new(0.2, 0, 0.7, 0); Box.ZIndex = 6
+				UICorner_2.CornerRadius = UDim.new(0, 3); UICorner_2.Parent = Box
+				UIStroke.Thickness = 0.500; UIStroke.Color = NEVERLOSE.Themes.StrokeColor; UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; UIStroke.Parent = Box
+				ValueText.Name = "ValueText"; ValueText.Parent = Box; ValueText.AnchorPoint = Vector2.new(0.5, 0.5); ValueText.BackgroundTransparency = 1.000; ValueText.Position = UDim2.new(0.5, 0, 0.5, 0); ValueText.Size = UDim2.new(0.99, 0, 0.99, 0); ValueText.ZIndex = 6; ValueText.Font = Enum.Font.SourceSansSemibold; ValueText.Text = tostring(Default); ValueText.TextColor3 = Color3.fromRGB(255, 255, 255); ValueText.TextScaled = true; ValueText.TextWrapped = true
+				MoveFrame.Name = "MoveFrame"; MoveFrame.Parent = Slider; MoveFrame.AnchorPoint = Vector2.new(0, 0.5); MoveFrame.BackgroundColor3 = NEVERLOSE.Themes.MainColorDrop; MoveFrame.ClipsDescendants = true; MoveFrame.Position = UDim2.new(0.45, 0, 0.5, 0); MoveFrame.Size = UDim2.new(0.3, 0, 0.15, 0); MoveFrame.ZIndex = 5
+				UICorner_3.CornerRadius = UDim.new(0, 3); UICorner_3.Parent = MoveFrame
+				Inline.Name = "Inline"; Inline.Parent = MoveFrame; Inline.AnchorPoint = Vector2.new(0, 0.5); Inline.BackgroundColor3 = NEVERLOSE.Themes.MainColor; Inline.Position = UDim2.new(0, 0, 0.5, 0); Inline.Size = UDim2.new((Default/Max), 0, 1, 0); Inline.ZIndex = 5
+				UICorner_4.CornerRadius = UDim.new(0, 3); UICorner_4.Parent = Inline
+				Cir.Name = "Cir"; Cir.Parent = Inline; Cir.AnchorPoint = Vector2.new(1, 0.5); Cir.BackgroundColor3 = NEVERLOSE.Themes.MainColor; Cir.Position = UDim2.new(1, 0, 0.5, 0); Cir.Size = UDim2.new(3, 0, 3, 0); Cir.SizeConstraint = Enum.SizeConstraint.RelativeYY; Cir.ZIndex = 5
+				UICorner_5.CornerRadius = UDim.new(0.5, 0); UICorner_5.Parent = Cir
+				InputFrame.Parent = Slider; InputFrame.AnchorPoint = Vector2.new(0, 0.5); InputFrame.BackgroundTransparency = 1.000; InputFrame.Position = UDim2.new(0.45, 0, 0.5, 0); InputFrame.Size = UDim2.new(0.3, 0, 1, 0); InputFrame.ZIndex = 6
+				local isDragging = false
+				local function update(Input)
+					local SizeScale = math.clamp((Input.Position.X - MoveFrame.AbsolutePosition.X) / MoveFrame.AbsoluteSize.X, 0, 1)
+					local Valuea = math.floor(((Max - Min) * SizeScale) + Min)
+					ValueText.Text = tostring(Valuea); TweenService:Create(Inline,TweenInfo.new(0.1),{Size = UDim2.fromScale(SizeScale, 1)}):Play(); callback(Valuea)
+				end
+				InputFrame.InputBegan:Connect(function(Input) if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then isDragging = true; update(Input); TweenService:Create(LabelText,TweenInfo.new(0.1),{TextTransparency=0}):Play() end end)
+				InputFrame.InputEnded:Connect(function(Input) if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then isDragging = false; TweenService:Create(LabelText,TweenInfo.new(0.1),{TextTransparency=0.3}):Play() end end)
+				InputService.InputChanged:Connect(function(Input) if isDragging and (Input.UserInputType==Enum.UserInputType.MouseMovement or Input.UserInputType==Enum.UserInputType.Touch) then update(Input) end end)
+				local func={}; function func:Value(s) ValueText.Text = tostring(s); Inline.Size=UDim2.fromScale((s/Max),1); callback(s) end; function func:Text(t) LabelText.Text=tostring(t) end
+				return func
+			end
+
+			function sectionfunc:AddDropdown(DropdownName,data,Default,callback)
+				data=data or {}; Default=Default or data[1]; callback=callback or function() end
+				local Dropdown = Instance.new("Frame"); local UIAspectRatioConstraint = Instance.new("UIAspectRatioConstraint"); local UICorner = Instance.new("UICorner"); local LabelText = Instance.new("TextLabel"); local TopBar = Instance.new("Frame"); local UICorner_2 = Instance.new("UICorner"); local UIStroke = Instance.new("UIStroke"); local ValueText = Instance.new("TextLabel"); local Icon = Instance.new("TextLabel"); local DownBar = Instance.new("Frame"); local UICorner_3 = Instance.new("UICorner"); local UIStroke_2 = Instance.new("UIStroke"); local UIListLayout = Instance.new("UIListLayout")
+				Dropdown.Name = "Dropdown"; Dropdown.Parent = Section; Dropdown.BackgroundTransparency = 1.000; Dropdown.Size = UDim2.new(0.899999976, 0, 0, 0); Dropdown.ZIndex = 10
+				UIAspectRatioConstraint.Parent = Dropdown; UIAspectRatioConstraint.AspectRatio = 7.000; UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize; UICorner.Parent = Dropdown
+				LabelText.Name = "LabelText"; LabelText.Parent = Dropdown; LabelText.AnchorPoint = Vector2.new(0, 0.5); LabelText.BackgroundTransparency = 1.000; LabelText.Position = UDim2.new(0, 0, 0.5, 0); LabelText.Size = UDim2.new(0.55, 0, 0.75, 0); LabelText.ZIndex = 6; LabelText.Font = Enum.Font.SourceSansSemibold; LabelText.Text = DropdownName or "Label-Test"; LabelText.TextColor3 = Color3.fromRGB(255, 255, 255); LabelText.TextScaled = true; LabelText.TextWrapped = true; LabelText.TextXAlignment = Enum.TextXAlignment.Left
+				TopBar.Name = "TopBar"; TopBar.Parent = Dropdown; TopBar.Active = true; TopBar.AnchorPoint = Vector2.new(1, 0.5); TopBar.BackgroundColor3 = NEVERLOSE.Themes.ButtonBlackgroundColor; TopBar.BackgroundTransparency = 0.500; TopBar.Position = UDim2.new(1, 0, 0.5, 0); TopBar.Size = UDim2.new(0.4, 0, 0.7, 0); TopBar.ZIndex = 11
+				UICorner_2.CornerRadius = UDim.new(0, 3); UICorner_2.Parent = TopBar
+				UIStroke.Thickness = 0.500; UIStroke.Color = NEVERLOSE.Themes.StrokeColor; UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; UIStroke.Parent = TopBar
+				ValueText.Name = "ValueText"; ValueText.Parent = TopBar; ValueText.AnchorPoint = Vector2.new(0, 0.5); ValueText.BackgroundTransparency = 1.000; ValueText.Position = UDim2.new(0, 5, 0.5, 0); ValueText.Size = UDim2.new(1, -20, 0.9, 0); ValueText.ZIndex = 12; ValueText.Font = Enum.Font.SourceSansSemibold; ValueText.Text = tostring(Default); ValueText.TextColor3 = Color3.fromRGB(255, 255, 255); ValueText.TextScaled = true; ValueText.TextXAlignment = Enum.TextXAlignment.Left
+				Icon.Name = "Icon"; Icon.Parent = TopBar; Icon.AnchorPoint = Vector2.new(1, 0.5); Icon.BackgroundTransparency = 1.000; Icon.Position = UDim2.new(1, -5, 0.5, 0); Icon.Rotation = 90.000; Icon.Size = UDim2.new(0, 10, 0, 10); Icon.ZIndex = 12; Icon.Font = Enum.Font.SourceSans; Icon.Text = "<"; Icon.TextColor3 = Color3.fromRGB(255, 255, 255); Icon.TextScaled = true
+				DownBar.Name = "DownBar"; DownBar.Parent = Dropdown; DownBar.Active = true; DownBar.AnchorPoint = Vector2.new(1, 0); DownBar.BackgroundColor3 = NEVERLOSE.Themes.ButtonBlackgroundColor; DownBar.ClipsDescendants = true; DownBar.Position = UDim2.new(1, 0, 1, 0); DownBar.Size = UDim2.new(0.4, 0, 0, 0); DownBar.Visible = false; DownBar.ZIndex = 9
+				UICorner_3.CornerRadius = UDim.new(0, 3); UICorner_3.Parent = DownBar
+				UIStroke_2.Thickness = 0.500; UIStroke_2.Color = NEVERLOSE.Themes.StrokeColor; UIStroke_2.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; UIStroke_2.Parent = DownBar
+				UIListLayout.Parent = DownBar; UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder; UIListLayout.Padding = UDim.new(0, 2)
+				local choose = Default; local DropdownToggle = false
+				local function DropdownToggleEffect(val)
+					DropdownToggle = val
+					if val then DownBar.Visible = true; TweenService:Create(Icon,TweenInfo.new(0.15),{Rotation=90}):Play(); TweenService:Create(DownBar,TweenInfo.new(0.2),{Size=UDim2.new(0.4,0,0,math.min(100, #data * 22))}):Play()
+					else TweenService:Create(Icon,TweenInfo.new(0.15),{Rotation=-90}):Play(); local tween = TweenService:Create(DownBar,TweenInfo.new(0.2),{Size=UDim2.new(0.4,0,0,0)}); tween:Play(); tween.Completed:Connect(function() DownBar.Visible=false end) end
+				end
+				create_invisible_button(TopBar).MouseButton1Click:Connect(function() DropdownToggleEffect(not DropdownToggle) end)
+				local function newbutton(); local Dropdown = Instance.new("TextButton"); local UIAspectRatioConstraint = Instance.new("UIAspectRatioConstraint"); Dropdown.Name = "Dropdown"; Dropdown.Parent = DownBar; Dropdown.BackgroundTransparency = 1.000; Dropdown.Size = UDim2.new(0.9, 0, 0, 20); Dropdown.ZIndex = 10; Dropdown.Font = Enum.Font.SourceSansSemibold; Dropdown.Text = "List"; Dropdown.TextColor3 = Color3.fromRGB(255, 255, 255); Dropdown.TextScaled = true; Dropdown.MouseEnter:Connect(function() TweenService:Create(Dropdown,TweenInfo.new(0.1),{TextTransparency=0}):Play() end); Dropdown.MouseLeave:Connect(function() TweenService:Create(Dropdown,TweenInfo.new(0.1),{TextTransparency=0.3}):Play() end); return Dropdown end
+				local function refresh()
+					for i,v in ipairs(DownBar:GetChildren()) do if v:isA('TextButton') then v:Destroy() end end
+					for i,v in ipairs(data) do local button=newbutton(); button.Text=tostring(v); button.MouseButton1Click:Connect(function() ValueText.Text=tostring(v); choose=v; callback(v); DropdownToggleEffect(false) end) end
+				end
+				refresh()
+				local func={}; function func:Refresh(new) data=new or data; refresh() end; function func:Text(a) LabelText.Text=tostring(a) end; function func:Get() return choose end
+				return func
+			end
+			
+			function sectionfunc:AddTextbox(Name, Placeholder, callback)
+				callback=callback or function() end
+				local TextboxFrame = Instance.new("Frame"); local UIAspectRatioConstraint = Instance.new("UIAspectRatioConstraint"); local LabelText = Instance.new("TextLabel"); local InputBox = Instance.new("TextBox"); local UICorner = Instance.new("UICorner"); local UIStroke = Instance.new("UIStroke")
+				TextboxFrame.Name = "Textbox"; TextboxFrame.Parent = Section; TextboxFrame.BackgroundTransparency = 1; TextboxFrame.Size = UDim2.new(0.899, 0, 0, 0); TextboxFrame.ZIndex = 5
+				UIAspectRatioConstraint.Parent = TextboxFrame; UIAspectRatioConstraint.AspectRatio = 7; UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize
+				LabelText.Parent = TextboxFrame; LabelText.AnchorPoint = Vector2.new(0, 0.5); LabelText.Position = UDim2.new(0, 0, 0.5, 0); LabelText.Size = UDim2.new(0.5, -5, 0.75, 0); LabelText.BackgroundTransparency = 1; LabelText.Font = Enum.Font.SourceSansSemibold; LabelText.Text = Name or "Textbox"; LabelText.TextColor3 = Color3.fromRGB(255, 255, 255); LabelText.TextScaled = true; LabelText.TextXAlignment = Enum.TextXAlignment.Left
+				InputBox.Parent = TextboxFrame; InputBox.AnchorPoint = Vector2.new(1, 0.5); InputBox.Position = UDim2.new(1, 0, 0.5, 0); InputBox.Size = UDim2.new(0.5, 0, 0.7, 0); InputBox.BackgroundColor3 = NEVERLOSE.Themes.ButtonBlackgroundColor; InputBox.Font = Enum.Font.SourceSans; InputBox.Text = ""; InputBox.PlaceholderText = Placeholder or "..."; InputBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150); InputBox.TextColor3 = Color3.fromRGB(255, 255, 255); InputBox.ZIndex = 6; InputBox.ClearTextOnFocus = false
+				UICorner.Parent = InputBox; UICorner.CornerRadius = UDim.new(0, 3)
+				UIStroke.Parent = InputBox; UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; UIStroke.Color = NEVERLOSE.Themes.StrokeColor; UIStroke.Thickness = 0.5
+				InputBox.FocusLost:Connect(function(enterPressed) if enterPressed then callback(InputBox.Text) end end)
+				local funcs = {}; function funcs:Text(txt) InputBox.Text = tostring(txt); callback(txt) end
+				return funcs
+			end
+
+			function sectionfunc:AddColorPicker(Name, Default, callback)
+				Default = Default or Color3.new(1,0,0); callback = callback or function() end
+				local h, s, v = Color3.toHSV(Default)
+				local colorData = {H=h, S=s, V=v}
+
+				local PickerFrame = Instance.new("Frame"); local UIAspectRatioConstraint = Instance.new("UIAspectRatioConstraint"); local LabelText = Instance.new("TextLabel"); local ColorPreview = Instance.new("TextButton"); local UICorner = Instance.new("UICorner"); local UIStroke = Instance.new("UIStroke")
+				PickerFrame.Name = "ColorPicker"; PickerFrame.Parent = Section; PickerFrame.BackgroundTransparency = 1; PickerFrame.Size = UDim2.new(0.899, 0, 0, 0); PickerFrame.ZIndex = 5
+				UIAspectRatioConstraint.Parent = PickerFrame; UIAspectRatioConstraint.AspectRatio = 7; UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize
+				LabelText.Parent = PickerFrame; LabelText.AnchorPoint = Vector2.new(0, 0.5); LabelText.Position = UDim2.new(0, 0, 0.5, 0); LabelText.Size = UDim2.new(0.7, 0, 0.75, 0); LabelText.BackgroundTransparency = 1; LabelText.Font = Enum.Font.SourceSansSemibold; LabelText.Text = Name or "Color"; LabelText.TextColor3 = Color3.fromRGB(255, 255, 255); LabelText.TextScaled = true; LabelText.TextXAlignment = Enum.TextXAlignment.Left
+				ColorPreview.Parent = PickerFrame; ColorPreview.AnchorPoint = Vector2.new(1, 0.5); ColorPreview.Position = UDim2.new(1, 0, 0.5, 0); ColorPreview.Size = UDim2.new(0.25, 0, 0.7, 0); ColorPreview.BackgroundColor3 = Default; ColorPreview.Text = ""
+				UICorner.Parent = ColorPreview; UICorner.CornerRadius = UDim.new(0, 3)
+				UIStroke.Parent = ColorPreview; UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; UIStroke.Color = NEVERLOSE.Themes.StrokeColor; UIStroke.Thickness = 1
+
+				local pickerGui = nil
+				ColorPreview.MouseButton1Click:Connect(function()
+					if pickerGui and pickerGui.Parent then pickerGui:Destroy(); pickerGui = nil; return end
+					pickerGui = Instance.new("Frame", ScreenGui)
+					pickerGui.BackgroundColor3 = NEVERLOSE.Themes.BlackColor; pickerGui.Size = UDim2.new(0, 170, 0, 170); pickerGui.Position = UDim2.fromOffset(Mouse.X, Mouse.Y); pickerGui.ZIndex = 9999
+					local c = Instance.new("UICorner", pickerGui); c.CornerRadius = UDim.new(0, 4)
+					local s = Instance.new("UIStroke", pickerGui); s.Color = NEVERLOSE.Themes.StrokeColor
+					
+					local svBox = Instance.new("ImageLabel", pickerGui); svBox.Size = UDim2.new(0, 150, 0, 150); svBox.Position = UDim2.new(0.5, -80, 0.5, -80); svBox.BackgroundColor3 = Color3.fromHSV(colorData.H, 1, 1); svBox.ZIndex = 10000
+					local sGrad = Instance.new("UIGradient", svBox); sGrad.Color = ColorSequence.new(Color3.new(1,1,1), Color3.new(1,1,1)); sGrad.Transparency = NumberSequence.new(0,1)
+					local vGrad = Instance.new("UIGradient", svBox); vGrad.Color = ColorSequence.new(Color3.new(0,0,0), Color3.new(0,0,0)); vGrad.Transparency = NumberSequence.new(0,1); vGrad.Rotation = 90
+					local svCursor = Instance.new("Frame", svBox); svCursor.Size = UDim2.new(0, 5, 0, 5); svCursor.AnchorPoint = Vector2.new(0.5, 0.5); svCursor.Position = UDim2.new(colorData.S, 0, 1 - colorData.V, 0); svCursor.ZIndex = 10001; Instance.new("UIStroke", svCursor)
+					
+					local hueSlider = Instance.new("Frame", pickerGui); hueSlider.Size = UDim2.new(0, 10, 0, 150); hueSlider.Position = UDim2.new(1, -15, 0.5, -75); hueSlider.ZIndex = 10000
+					local hueGrad = Instance.new("UIGradient", hueSlider); hueGrad.Color = ColorSequence.new{ColorSequenceKeypoint.new(0, Color3.fromHSV(0,1,1)), ColorSequenceKeypoint.new(0.16, Color3.fromHSV(0.16,1,1)), ColorSequenceKeypoint.new(0.33, Color3.fromHSV(0.33,1,1)), ColorSequenceKeypoint.new(0.5, Color3.fromHSV(0.5,1,1)), ColorSequenceKeypoint.new(0.66, Color3.fromHSV(0.66,1,1)), ColorSequenceKeypoint.new(0.83, Color3.fromHSV(0.83,1,1)), ColorSequenceKeypoint.new(1, Color3.fromHSV(1,1,1))}; hueGrad.Rotation = 90
+					local hueCursor = Instance.new("Frame", hueSlider); hueCursor.Size = UDim2.new(1.4, 0, 0, 3); hueCursor.AnchorPoint = Vector2.new(0.5, 0.5); hueCursor.Position = UDim2.new(0.5, 0, colorData.H, 0); hueCursor.ZIndex = 10001; Instance.new("UIStroke", hueCursor)
+					
+					local function updateColor()
+						local finalColor = Color3.fromHSV(colorData.H, colorData.S, colorData.V)
+						ColorPreview.BackgroundColor3 = finalColor; svBox.BackgroundColor3 = Color3.fromHSV(colorData.H, 1, 1); callback(finalColor)
+					end
+
+					local svDragging, hueDragging = false, false
+					svBox.InputBegan:Connect(function() svDragging = true end); svBox.InputEnded:Connect(function() svDragging = false end)
+					hueSlider.InputBegan:Connect(function() hueDragging = true end); hueSlider.InputEnded:Connect(function() hueDragging = false end)
+					
+					InputService.InputChanged:Connect(function(input)
+						if not pickerGui or not pickerGui.Parent then return end
+						if svDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+							local pos = Vector2.new(math.clamp(input.Position.X - svBox.AbsolutePosition.X, 0, svBox.AbsoluteSize.X), math.clamp(input.Position.Y - svBox.AbsolutePosition.Y, 0, svBox.AbsoluteSize.Y))
+							svCursor.Position = UDim2.fromOffset(pos.X, pos.Y); colorData.S = pos.X / svBox.AbsoluteSize.X; colorData.V = 1 - (pos.Y / svBox.AbsoluteSize.Y); updateColor()
+						end
+						if hueDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+							local pos = math.clamp(input.Position.Y - hueSlider.AbsolutePosition.Y, 0, hueSlider.AbsoluteSize.Y)
+							hueCursor.Position = UDim2.new(0.5, 0, 0, pos); colorData.H = pos / hueSlider.AbsoluteSize.Y; updateColor()
+						end
+					end)
+				end)
+
+				local funcs = {}; function funcs:Value(c3) h,s,v = c3:ToHSV(); colorData={H=h,S=s,V=v}; ColorPreview.BackgroundColor3 = c3; callback(c3) end
+				return funcs
+			end
+
+			return sectionfunc
+		end
+
+
+		return TabFunctions
+	end
+
+	function WindowFunctinos:Delete() ScreenGui:Destroy() end
+
+	return WindowFunctinos
+end
+
+function NEVERLOSE:KeySystem(TitleName,LinkKey,callback)
+	return {}
+end
+
+function NEVERLOSE:Notification()
+	return {Notify = function() end}
+end
+
+return NEVERLOSE
