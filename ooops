@@ -1,0 +1,861 @@
+-- ╔══════════════════════════════════════════════════════════════════════╗
+-- ║              P  R  O  X  I  M  A     U  I     L  I  B              ║
+-- ║                    (cleaned-up, NOT stripped)                      ║
+-- ║                                                                    ║
+-- ║  • Parent        :  game.CoreGui                                   ║
+-- ║  • Author        :  Trix / Julman – refactored & beautified        ║
+-- ║  • Public API    :  identical to original (Window / Tab / etc.)    ║
+-- ╚══════════════════════════════════════════════════════════════════════╝
+--
+--  USAGE (identical to old one)
+--  ──────────────────────────────────────────────────────────────────────
+--      local lib    = loadstring(game:HttpGet("…"))()   -- or require()
+--      local window = lib:CreateWindow("Demo")
+--      local tab    = window:CreateTab("Main")
+--      tab:CreateLabel("Hello","Description")
+--      tab:CreateButton("Ping", function() print("clicked") end)
+--      local tog    = tab:CreateToggle("God",false,print)
+--      local sld    = tab:CreateSlider("Walk",0,16,print,5,1)
+--      local txt    = tab:CreateTextbox("Chat",print,"say …")
+--      local drop   = tab:CreateDropdown("Players",{},print)
+-------------------------------------------------------------------------
+
+-----------------------------------------------------------------------
+-- ░█▀▄░█░█░█▀▄░▀█▀░█▀█░▀█▀░█▀█░█▀▄░█▀▀
+-- ░█░█░█░█░█▀▄░░█░░█▀█░░█░░█░█░█▀▄░█▀▀
+-- ░▀▀░░▀▀▀░▀░▀░░▀░░▀░▀░░▀░░▀▀▀░▀░▀░▀▀▀
+-----------------------------------------------------------------------
+local Services     = game.GetService
+local TweenService = Services(game, "TweenService")
+local UserInput    = Services(game, "UserInputService")
+local CoreGui      = Services(game, "CoreGui")
+local Players      = Services(game, "Players")
+local StarterGui   = Services(game, "StarterGui")
+local HttpService  = Services(game, "HttpService")
+local LocalPlayer  = Players.LocalPlayer
+
+-----------------------------------------------------------------------
+--  NOTIFICATION SOUND  (kept from original)
+-----------------------------------------------------------------------
+pcall(function()
+    local sound = Instance.new("Sound")
+    sound.Name   = "Proxima_Notification"
+    sound.SoundId= "rbxassetid://6026984224"
+    sound.Volume = 1
+    sound.Parent = workspace
+    sound:Play()
+    sound.Ended:Connect(function() sound:Destroy() end)
+end)
+
+-----------------------------------------------------------------------
+--  LIGHT-WEIGHT MAID  (≈ Janitor, cleans connections / instances)
+-----------------------------------------------------------------------
+local function newMaid()
+    local self = { _t = {} }
+
+    function self:GiveTask(t)
+        self._t[#self._t + 1] = t
+        return t
+    end
+
+    function self:DoCleaning()
+        for _,task in ipairs(self._t) do
+            if typeof(task) == "RBXScriptConnection" then
+                task:Disconnect()
+            elseif typeof(task) == "Instance" then
+                task:Destroy()
+            elseif type(task) == "function" then
+                task()
+            end
+        end
+        table.clear(self._t)
+    end
+
+    return self
+end
+
+-----------------------------------------------------------------------
+--  THEME & NUMERICAL CONSTANTS  (easy to edit)
+-----------------------------------------------------------------------
+local FONT      = Enum.Font.GothamBold
+local WINDOW_W  = 612            --  top-bar width  (px)
+local WINDOW_H  = 370            --  body height    (px)
+local SLIDER_W  = 425            --  active slider width
+
+local COLORS    = table.freeze({
+    White = Color3.fromRGB(255,255,255),
+    Black = Color3.fromRGB(  0,  0,  0),
+    Cyan  = Color3.fromRGB( 85,255,255),
+
+    Gray  = table.freeze({
+        Stroke     = Color3.fromRGB(145,145,145),
+        Button     = Color3.fromRGB( 45, 45, 45),
+        DarkButton = Color3.fromRGB( 40, 40, 40),
+        Top        = Color3.fromRGB( 26, 26, 26),
+        TogBox     = Color3.fromRGB( 32, 33, 32),
+        Drop       = Color3.fromRGB( 60, 60, 60),
+    }),
+
+    GradientCyan = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(  7,255,247)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(  5, 78,157)),
+    })
+})
+
+-----------------------------------------------------------------------
+--  UTILITIES  (constructor, tween shortcut, hover tint, rounding …)
+-----------------------------------------------------------------------
+local Util = {}
+
+-- Instance constructor helper  (class, propsTable, childArray?)
+function Util.i(className, props, children)
+    local inst = Instance.new(className)
+    if props then for k,v in pairs(props) do inst[k] = v end end
+    if children then
+        for _,c in ipairs(children) do c.Parent = inst end
+    end
+    return inst
+end
+
+-- Tween shortcut
+function Util.t(i, goal, time)
+    TweenService:Create(i, TweenInfo.new(time, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), goal):Play()
+end
+
+-- Hover colour effect (base → hover, revert on leave)
+function Util.hover(btn, base, over)
+    btn.AutoButtonColor = false
+    btn.MouseEnter:Connect(function() Util.t(btn, {BackgroundColor3 = over }, 0.12) end)
+    btn.MouseLeave:Connect(function() Util.t(btn, {BackgroundColor3 = base }, 0.20) end)
+end
+
+-- Round with decimal places
+function Util.round(n, d)
+    d = d or 0
+    local k = 10 ^ d
+    return math.floor(n * k + 0.5) / k
+end
+
+-----------------------------------------------------------------------
+--  LIBRARY TABLE  (to be returned at bottom)
+-----------------------------------------------------------------------
+local Library             = {}
+local nextWindowIncrement = 0               -- incremental window id
+
+-----------------------------------------------------------------------
+-- ░█▀▄░█░█░█▀▄░▀█▀░█▀█░█▀█░▀█▀
+-- ░█░█░█░█░█▀▄░░█░░█░█░█░█░░█░
+-- ░▀▀░░▀▀▀░▀░▀░░▀░░▀▀▀░▀░▀░▀▀▀
+-----------------------------------------------------------------------
+function Library:CreateWindow(title)
+
+    -------------------------------------------------------------------
+    --  bookkeeping
+    -------------------------------------------------------------------
+    nextWindowIncrement += 1
+    title      = title or ("Proxima Window " .. nextWindowIncrement)
+    local maid = newMaid()
+
+    -------------------------------------------------------------------
+    --  ROOT ‑- ScreenGui
+    -------------------------------------------------------------------
+    local screen = Util.i("ScreenGui",{
+        Name            = "Proxima_" .. HttpService:GenerateGUID(false),
+        ResetOnSpawn    = false,
+        ZIndexBehavior  = Enum.ZIndexBehavior.Sibling,
+        Parent          = CoreGui
+    })
+    maid:GiveTask(screen)
+
+    -------------------------------------------------------------------
+    --  TOP BAR  (drag, close, minimise)
+    -------------------------------------------------------------------
+    local topBar = Util.i("Frame",{
+        Size                = UDim2.fromOffset(WINDOW_W,42),
+        Position            = UDim2.fromScale(.375,.184),
+        BackgroundColor3    = COLORS.Gray.Top,
+        BorderColor3        = COLORS.Gray.Stroke,
+        Parent              = screen,
+    },{
+        Util.i("UICorner",{CornerRadius = UDim.new(0,4)})
+    })
+
+    Util.i("TextLabel",{
+        BackgroundTransparency = 1,
+        Size        = UDim2.new(1,0,1,0),
+        Position    = UDim2.fromOffset(15,-1),
+        Font        = FONT,
+        TextSize    = 14,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextColor3  = COLORS.White,
+        Text        = title,
+        Parent      = topBar,
+    })
+
+    -------------------------------------------------------------------
+    --  drag support for top-bar
+    -------------------------------------------------------------------
+    do
+        local dragging       = false
+        local dragStart      = nil
+        local dragStartPos   = nil
+
+        maid:GiveTask(topBar.InputBegan:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging     = true
+                dragStart    = inp.Position
+                dragStartPos = topBar.Position
+            end
+        end))
+
+        maid:GiveTask(UserInput.InputChanged:Connect(function(inp)
+            if dragging and inp.UserInputType == Enum.UserInputType.MouseMovement then
+                local delta = inp.Position - dragStart
+                topBar.Position = dragStartPos + UDim2.fromOffset(delta.X, delta.Y)
+            end
+        end))
+
+        maid:GiveTask(UserInput.InputEnded:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = false
+            end
+        end))
+    end
+
+    -------------------------------------------------------------------
+    --  CLOSE & MINIMISE BUTTONS
+    -------------------------------------------------------------------
+    local closeBtn = Util.i("TextButton",{
+        BackgroundTransparency = 1,
+        Size        = UDim2.fromOffset(25,25),
+        Position    = UDim2.fromScale(.935,.13),
+        Text        = "✕",
+        TextColor3  = COLORS.White,
+        Font        = FONT,
+        TextSize    = 20,
+        Parent      = topBar
+    })
+
+    local minimiseBtn = Util.i("TextButton",{
+        BackgroundTransparency = 1,
+        Size        = UDim2.fromOffset(25,25),
+        Position    = UDim2.fromScale(.89,.13),
+        Text        = "_",
+        TextColor3  = COLORS.White,
+        Font        = FONT,
+        TextSize    = 24,
+        Parent      = topBar
+    })
+
+    maid:GiveTask(closeBtn.MouseButton1Click:Connect(function()
+        maid:DoCleaning()
+    end))
+
+    -------------------------------------------------------------------
+    --  BODY ‑- container for tab column + main content
+    -------------------------------------------------------------------
+    local bodyFrame = Util.i("Frame",{
+        Size                = UDim2.fromOffset(WINDOW_W,WINDOW_H),
+        Position            = UDim2.new(0,0,1,0),
+        BackgroundColor3    = COLORS.Gray.Top,
+        BorderColor3        = COLORS.Gray.Stroke,
+        Parent              = topBar
+    },{
+        Util.i("UICorner",{CornerRadius = UDim.new(0,3)})
+    })
+
+    -------------------------------------------------------------------
+    --  TAB COLUMN  (left)
+    -------------------------------------------------------------------
+    local tabColumn = Util.i("ScrollingFrame",{
+        BackgroundTransparency = 1,
+        Size                = UDim2.new(0,160,1,-10),
+        Position            = UDim2.new(0,0,0,10),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        CanvasSize          = UDim2.new(),
+        ScrollBarThickness  = 0,
+        Parent              = bodyFrame
+    },{
+        Util.i("UIPadding",{PaddingTop = UDim.new(0,10), PaddingLeft = UDim.new(0,5)}),
+        Util.i("UIGridLayout",{
+            CellSize    = UDim2.new(0,150,0,25),
+            CellPadding = UDim2.new(0,5,0,10),
+            SortOrder   = Enum.SortOrder.LayoutOrder
+        })
+    })
+
+    -------------------------------------------------------------------
+    --  CONTENT HOLDER  (right)
+    -------------------------------------------------------------------
+    local contentHolder = Util.i("Frame",{
+        BackgroundTransparency = 1,
+        Size     = UDim2.new(1,-170,1,-20),
+        Position = UDim2.new(0,170,0,10),
+        Parent   = bodyFrame
+    })
+
+    -------------------------------------------------------------------
+    --  WINDOW STATE FLAGS
+    -------------------------------------------------------------------
+    local minimised = false
+    local hidden    = false
+
+    -------------------------------------------------------------------
+    --  MINIMISE LOGIC
+    -------------------------------------------------------------------
+    local function setMinimised(state)
+        minimised = state
+        local newH = state and 10 or WINDOW_H
+        Util.t(bodyFrame, {Size = UDim2.fromOffset(WINDOW_W,newH)}, 0.25)
+        contentHolder.Visible = not state
+        tabColumn      .Visible = not state
+    end
+    maid:GiveTask(minimiseBtn.MouseButton1Click:Connect(function()
+        setMinimised(not minimised)
+    end))
+
+    -------------------------------------------------------------------
+    --  HIDE / SHOW hot-key (LeftAlt)
+    -------------------------------------------------------------------
+    local function setHidden(state)
+        hidden = state
+        topBar.Visible = not state
+    end
+    maid:GiveTask(UserInput.InputBegan:Connect(function(inp,gpe)
+        if not gpe and inp.KeyCode == Enum.KeyCode.LeftAlt then
+            setHidden(not hidden)
+        end
+    end))
+
+    -------------------------------------------------------------------
+    --  TAB MANAGEMENT
+    -------------------------------------------------------------------
+    local currentTab    = nil
+    local tabContainers = {}      -- [name] = frame
+
+    local function selectTab(name)
+        for n,frame in pairs(tabContainers) do
+            frame.Visible = (n == name)
+        end
+        for _,child in ipairs(tabColumn:GetChildren()) do
+            if child:IsA("TextButton") then
+                child.TextColor3 = (child.Text == name) and COLORS.White or Color3.fromRGB(173,173,173)
+            end
+        end
+    end
+
+    -------------------------------------------------------------------
+    --  WINDOW PUBLIC API
+    -------------------------------------------------------------------
+    local windowAPI = {}
+
+    function windowAPI:Destroy()
+        maid:DoCleaning()
+    end
+
+    -------------------------------------------------------------------
+    -- ░█░█░█▀█░█▀▄░█▀▄░█▀█
+    -- ░█░█░█░█░█░█░█░█░█░█
+    -- ░▀▀▀░▀▀▀░▀▀░░▀▀░░▀░▀
+    --  CreateTab ‑- returns TAB-API (controls)
+    -------------------------------------------------------------------
+    function windowAPI:CreateTab(tabName)
+
+        ---------------------------------------------------------------
+        --  TAB BUTTON  (left column)
+        ---------------------------------------------------------------
+        local tabBtn = Util.i("TextButton",{
+            BackgroundColor3    = COLORS.Gray.Top,
+            Text                = tabName,
+            TextColor3          = COLORS.White,
+            Font                = FONT,
+            TextSize            = 12,
+            Size                = UDim2.fromScale(1,0),
+            Parent              = tabColumn
+        },{
+            Util.i("UICorner",{CornerRadius = UDim.new(0,2)})
+        })
+        Util.hover(tabBtn, COLORS.Gray.Top, Color3.fromRGB(80,80,80))
+
+        ---------------------------------------------------------------
+        --  TAB CONTENT CONTAINER
+        ---------------------------------------------------------------
+        local tabScroller = Util.i("ScrollingFrame",{
+            BackgroundTransparency = 1,
+            Size                  = UDim2.new(1,0,1,0),
+            AutomaticCanvasSize   = Enum.AutomaticSize.Y,
+            CanvasSize            = UDim2.new(),
+            ScrollBarThickness    = 0,
+            Visible               = false,
+            Parent                = contentHolder
+        },{
+            Util.i("UIPadding",{PaddingTop = UDim.new(0,7), PaddingLeft = UDim.new(0,2)}),
+            Util.i("UIListLayout",{Padding = UDim.new(0,7),SortOrder = Enum.SortOrder.LayoutOrder})
+        })
+
+        tabContainers[tabName] = tabScroller
+        if not currentTab then
+            currentTab = tabName
+            tabScroller.Visible = true
+        end
+
+        maid:GiveTask(tabBtn.MouseButton1Click:Connect(function()
+            selectTab(tabName)
+        end))
+
+        ---------------------------------------------------------------
+        --  TAB-API  (control builders inside this tab)
+        ---------------------------------------------------------------
+        local TAB = {}   ------------------------------------------------
+        local tabMaid = newMaid()  -- so you can TAB:Destroy() if you want
+        maid:GiveTask(function() tabMaid:DoCleaning() end)
+
+        ----------------------------------------------------------------
+        --  LABEL   (title + small optional description)
+        ----------------------------------------------------------------
+        function TAB:CreateLabel(text, description)
+            local lbl = Util.i("TextLabel",{
+                BackgroundColor3    = COLORS.Gray.DarkButton,
+                TextColor3          = COLORS.White,
+                TextXAlignment      = Enum.TextXAlignment.Left,
+                Font                = FONT,
+                TextSize            = 14,
+                Text                = "  "..text,
+                Size                = UDim2.new(1,-10,0,35),
+                Parent              = tabScroller
+            },{
+                Util.i("UICorner",{CornerRadius = UDim.new(0,2)})
+            })
+
+            if description and description ~= "" then
+                Util.i("TextLabel",{
+                    BackgroundTransparency = 1,
+                    TextColor3          = COLORS.White,
+                    TextXAlignment      = Enum.TextXAlignment.Left,
+                    Font                = FONT,
+                    TextSize            = 12,
+                    Text = "   "..description,
+                    Size = UDim2.new(1,-20,0,14),
+                    Position = UDim2.new(0,0,0,18),
+                    Parent   = lbl
+                })
+            end
+
+            return {Destroy = function() lbl:Destroy() end}
+        end
+
+        ----------------------------------------------------------------
+        --  BUTTON
+        ----------------------------------------------------------------
+        function TAB:CreateButton(text, callback)
+            local btn = Util.i("TextButton",{
+                BackgroundColor3    = COLORS.Gray.DarkButton,
+                TextColor3          = COLORS.White,
+                TextXAlignment      = Enum.TextXAlignment.Left,
+                Font                = FONT,
+                TextSize            = 14,
+                Text                = "  "..text,
+                Size                = UDim2.new(1,-10,0,35),
+                Parent              = tabScroller
+            },{
+                Util.i("UICorner",{CornerRadius = UDim.new(0,2)})
+            })
+            Util.hover(btn, COLORS.Gray.DarkButton, Color3.fromRGB(80,80,80))
+
+            tabMaid:GiveTask(btn.MouseButton1Click:Connect(function()
+                if callback then callback(btn) end
+            end))
+
+            return {Destroy = function() btn:Destroy() end}
+        end
+
+        ----------------------------------------------------------------
+        --  TOGGLE  (returns wrapper with Get/Set/Destroy)
+        ----------------------------------------------------------------
+        function TAB:CreateToggle(text, default, callback)
+            default   = default == true
+            local main = Util.i("TextButton",{
+                BackgroundColor3    = COLORS.Gray.DarkButton,
+                TextColor3          = COLORS.White,
+                TextXAlignment      = Enum.TextXAlignment.Left,
+                Font                = FONT,
+                TextSize            = 14,
+                Text                = "  "..text,
+                Size                = UDim2.new(1,-10,0,35),
+                Parent              = tabScroller,
+                AutoButtonColor     = false
+            },{
+                Util.i("UICorner",{CornerRadius = UDim.new(0,2)})
+            })
+            Util.hover(main, COLORS.Gray.DarkButton, Color3.fromRGB(80,80,80))
+
+            local track = Util.i("Frame",{
+                BackgroundColor3    = Color3.fromRGB(30,30,30),
+                Position            = UDim2.new(1,-40,0.5,-7),
+                Size                = UDim2.fromOffset(30,14),
+                Parent              = main
+            },{
+                Util.i("UICorner",{CornerRadius = UDim.new(0,7)})
+            })
+            local knob = Util.i("Frame",{
+                BackgroundColor3    = COLORS.Cyan,
+                Position            = UDim2.fromScale(default and 1 or 0,0),
+                AnchorPoint         = Vector2.new(default and 1 or 0, 0),
+                Size                = UDim2.fromOffset(14,14),
+                Parent              = track
+            },{
+                Util.i("UICorner",{CornerRadius = UDim.new(1,0)}),
+                Util.i("UIGradient",{Color = COLORS.GradientCyan})
+            })
+
+            local state = default
+            local toggleWrapper
+
+            local function set(val,fire)
+                state = val
+                knob.AnchorPoint = Vector2.new(val and 1 or 0,0)
+                Util.t(knob, {Position = UDim2.fromScale(val and 1 or 0,0)}, 0.1)
+                knob.UIGradient.Enabled = val
+                if fire and callback then callback(val, toggleWrapper) end
+            end
+
+            tabMaid:GiveTask(main.MouseButton1Click:Connect(function()
+                set(not state, true)
+            end))
+
+            toggleWrapper = {
+                GetValue = function() return state end,
+                SetValue = function(_,v) set(v, false) end,
+                Destroy  = function() main:Destroy() end
+            }
+            return toggleWrapper
+        end
+
+        ----------------------------------------------------------------
+        --  SLIDER
+        ----------------------------------------------------------------
+        function TAB:CreateSlider(text, min, max, callback, default, decimals)
+            min      = min      or 0
+            max      = max      or 100
+            default  = default  or min
+            decimals = decimals or 0
+
+            local label = Util.i("TextLabel",{
+                BackgroundColor3 = COLORS.Gray.DarkButton,
+                TextColor3       = COLORS.White,
+                TextXAlignment   = Enum.TextXAlignment.Left,
+                Font             = FONT,
+                TextSize         = 14,
+                Text             = "  "..text,
+                Size             = UDim2.new(1,-10,0,40),
+                Parent           = tabScroller
+            },{
+                Util.i("UICorner",{CornerRadius = UDim.new(0,2)})
+            })
+
+            local bar = Util.i("Frame",{
+                BackgroundColor3 = COLORS.White,
+                Position         = UDim2.new(0,15,1,-14),
+                Size             = UDim2.fromOffset(SLIDER_W,8),
+                Parent           = label
+            },{
+                Util.i("UICorner",{CornerRadius = UDim.new(0,25)})
+            })
+
+            local fill = Util.i("Frame",{
+                BackgroundColor3 = COLORS.Cyan,
+                Size             = UDim2.fromScale((default-min)/(max-min),1),
+                Parent           = bar
+            },{
+                Util.i("UICorner",{CornerRadius = UDim.new(0,25)}),
+                Util.i("UIGradient",{Color = COLORS.GradientCyan})
+            })
+
+            local valueLbl = Util.i("TextLabel",{
+                BackgroundTransparency = 1,
+                TextColor3      = COLORS.White,
+                Font            = FONT,
+                TextSize        = 12,
+                TextXAlignment  = Enum.TextXAlignment.Right,
+                Text            = default,
+                Size            = UDim2.new(0,100,0,14),
+                Position        = UDim2.new(1,-110,0,2),
+                Parent          = label
+            })
+
+            local current = default
+            local dragging = false
+            local sliderWrapper
+
+            local function setByPixel(px,fire)
+                local alpha   = math.clamp(px / SLIDER_W, 0, 1)
+                current       = Util.round(min + alpha * (max-min), decimals)
+                fill.Size     = UDim2.fromScale(alpha,1)
+                valueLbl.Text = tostring(current)
+                if fire and callback then callback(current, sliderWrapper) end
+            end
+
+            tabMaid:GiveTask(bar.InputBegan:Connect(function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = true
+                    setByPixel(inp.Position.X - bar.AbsolutePosition.X,true)
+                end
+            end))
+            tabMaid:GiveTask(UserInput.InputChanged:Connect(function(inp)
+                if dragging and inp.UserInputType == Enum.UserInputType.MouseMovement then
+                    setByPixel(inp.Position.X - bar.AbsolutePosition.X,true)
+                end
+            end))
+            tabMaid:GiveTask(UserInput.InputEnded:Connect(function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = false
+                end
+            end))
+
+            sliderWrapper = {
+                GetValue = function() return current end,
+                SetValue = function(_,v)
+                    setByPixel((v-min)/(max-min) * SLIDER_W, false)
+                end,
+                Destroy = function() label:Destroy() end
+            }
+            return sliderWrapper
+        end
+
+        ----------------------------------------------------------------
+        --  TEXTBOX
+        ----------------------------------------------------------------
+        function TAB:CreateTextbox(text, callback, placeholder)
+            placeholder = placeholder or "Write here"
+
+            local holder = Util.i("TextLabel",{
+                BackgroundColor3 = COLORS.Gray.DarkButton,
+                TextColor3       = COLORS.White,
+                TextXAlignment   = Enum.TextXAlignment.Left,
+                Font             = FONT,
+                TextSize         = 14,
+                Text             = "  "..text,
+                Size             = UDim2.new(1,-10,0,35),
+                Parent           = tabScroller
+            },{
+                Util.i("UICorner",{CornerRadius = UDim.new(0,2)})
+            })
+
+            local box = Util.i("TextBox",{
+                BackgroundColor3 = COLORS.Gray.TogBox,
+                BorderColor3     = COLORS.Gray.Stroke,
+                TextColor3       = Color3.fromRGB(178,178,178),
+                PlaceholderText  = placeholder,
+                Font             = FONT,
+                TextSize         = 12,
+                ClearTextOnFocus = false,
+                Size             = UDim2.fromOffset(120,27),
+                Position         = UDim2.new(1,-130,0.5,-13),
+                Parent           = holder
+            },{
+                Util.i("UICorner",{CornerRadius = UDim.new(0,2)})
+            })
+
+            local origPos = box.Position
+            local origSz  = box.Size
+
+            local function grow()
+                Util.t(box, {
+                    Position = origPos - UDim2.fromOffset(origSz.X.Offset * 0.3, 0),
+                    Size     = origSz  + UDim2.fromOffset(origSz.X.Offset * 0.3, 0)
+                }, 0.15)
+            end
+            local function shrink()
+                Util.t(box, {Position = origPos, Size = origSz}, 0.15)
+            end
+
+            tabMaid:GiveTask(box.Focused:Connect(grow))
+            tabMaid:GiveTask(box.MouseEnter:Connect(grow))
+            tabMaid:GiveTask(box.MouseLeave:Connect(function()
+                if not box:IsFocused() then shrink() end
+            end))
+            tabMaid:GiveTask(box.FocusLost:Connect(function(enter)
+                shrink()
+                if enter and callback then callback(box.Text, textWrapper) end
+            end))
+
+            local textWrapper = {
+                GetValue = function() return box.Text end,
+                SetValue = function(_,v) box.Text = v end,
+                Destroy  = function() holder:Destroy() end
+            }
+            return textWrapper
+        end
+
+        ----------------------------------------------------------------
+        --  DROPDOWN   (with optional SetSearchHook)
+        ----------------------------------------------------------------
+        function TAB:CreateDropdown(text, startValues, callback)
+            startValues = startValues or {}
+
+            -- ░ base container ░────────────────────────────────────────
+            local container = Util.i("Frame",{
+                BackgroundTransparency = 1,
+                ClipsDescendants       = false,
+                Size                   = UDim2.new(1,-10,0,35),
+                Parent                 = tabScroller
+            })
+
+            -- ░ main label/button ░────────────────────────────────────
+            local labelBtn = Util.i("TextButton",{
+                BackgroundColor3 = COLORS.Gray.DarkButton,
+                TextColor3       = COLORS.White,
+                TextXAlignment   = Enum.TextXAlignment.Left,
+                Font             = FONT,
+                TextSize         = 14,
+                Text             = "  "..text,
+                Size             = UDim2.new(1,0,0,35),
+                Parent           = container,
+                ZIndex           = 3,
+                AutoButtonColor  = false
+            },{
+                Util.i("UICorner",{CornerRadius = UDim.new(0,2)})
+            })
+            Util.hover(labelBtn, COLORS.Gray.DarkButton, Color3.fromRGB(80,80,80))
+
+            -- ░ chosen value display ░────────────────────────────────
+            local chosenLbl = Util.i("TextLabel",{
+                BackgroundTransparency = 1,
+                TextColor3       = COLORS.White,
+                Font             = FONT,
+                TextSize         = 12,
+                TextXAlignment   = Enum.TextXAlignment.Right,
+                Text             = "",
+                Size             = UDim2.new(0,200,1,0),
+                Position         = UDim2.new(1,-205,0,0),
+                Parent           = labelBtn,
+                ZIndex           = 3
+            })
+
+            -- ░ search box ░──────────────────────────────────────────
+            local searchBox = Util.i("TextBox",{
+                BackgroundColor3 = COLORS.Gray.TogBox,
+                TextColor3       = Color3.fromRGB(178,178,178),
+                PlaceholderText  = "Search",
+                PlaceholderColor3= Color3.fromRGB(178,178,178),
+                Font             = Enum.Font.SourceSansBold,
+                TextSize         = 14,
+                Size             = UDim2.fromOffset(130,20),
+                Position         = UDim2.new(1,-135,0,-5),
+                Visible          = false,
+                Parent           = container,
+                ZIndex           = 4
+            },{
+                Util.i("UICorner",{CornerRadius = UDim.new(0,2)})
+            })
+
+            -- ░ scrolling list of values ░────────────────────────────
+            local listFrame = Util.i("ScrollingFrame",{
+                BackgroundTransparency = 1,
+                Size                  = UDim2.new(1,0,0,98),
+                Position              = UDim2.new(0,0,1,0),
+                AutomaticCanvasSize   = Enum.AutomaticSize.Y,
+                CanvasSize            = UDim2.new(),
+                ScrollBarThickness    = 0,
+                Visible               = false,
+                Parent                = container,
+                ZIndex               = 3
+            },{
+                Util.i("UICorner",{CornerRadius = UDim.new(0,2)}),
+                Util.i("UIPadding",{PaddingTop = UDim.new(0,4)}),
+                Util.i("UIListLayout",{Padding = UDim.new(0,3)})
+            })
+
+            -- ░ helper to build one option button ░───────────────────
+            local function makeOption(val)
+                local opt = Util.i("TextButton",{
+                    BackgroundColor3 = COLORS.Gray.Drop,
+                    TextColor3       = COLORS.White,
+                    Font             = Enum.Font.SourceSans,
+                    TextSize         = 14,
+                    Size             = UDim2.new(1,0,0,20),
+                    Text             = val,
+                    Parent           = listFrame
+                },{
+                    Util.i("UICorner",{CornerRadius = UDim.new(0,3)})
+                })
+                Util.hover(opt, COLORS.Gray.Drop, Color3.fromRGB(90,90,90))
+
+                tabMaid:GiveTask(opt.MouseButton1Click:Connect(function()
+                    -- collapse
+                    listFrame.Visible   = false
+                    searchBox.Visible   = false
+                    chosenLbl.Visible   = true
+                    chosenLbl.Text      = val
+                    Util.t(container, {Size = UDim2.new(1,-10,0,35)}, 0.2)
+                    if callback then callback(val, dropdownWrapper) end
+                end))
+            end
+
+            -- initial population
+            for _,v in ipairs(startValues) do makeOption(v) end
+
+            -- ░ open/close behaviour ░────────────────────────────────
+            tabMaid:GiveTask(labelBtn.MouseButton1Click:Connect(function()
+                local open = not listFrame.Visible
+                if open then
+                    Util.t(container, {Size = UDim2.new(1,-10,0,140)}, 0.2)
+                else
+                    Util.t(container, {Size = UDim2.new(1,-10,0,35)}, 0.2)
+                end
+                listFrame.Visible = open
+                searchBox.Visible = open
+                chosenLbl.Visible = not open
+            end))
+
+            -- ░ search logic ░────────────────────────────────────────
+            local searchHook = nil
+            local function updateSearch()
+                local query = string.lower(searchBox.Text)
+                if searchHook then
+                    -- rebuild list using custom hook
+                    for _,c in ipairs(listFrame:GetChildren()) do
+                        if c:IsA("TextButton") then c:Destroy() end
+                    end
+                    for _,v in ipairs(searchHook(query)) do makeOption(v) end
+                else
+                    for _,btn in ipairs(listFrame:GetChildren()) do
+                        if btn:IsA("TextButton") then
+                            btn.Visible = (query == "" or string.find(string.lower(btn.Text), query, 1, true))
+                        end
+                    end
+                end
+            end
+            tabMaid:GiveTask(searchBox.Changed:Connect(function(p)
+                if p == "Text" then updateSearch() end
+            end))
+
+            -- ░ dropdown wrapper (public) ░───────────────────────────
+            local dropdownWrapper = {
+                AddValue = function(_,v) makeOption(v) end,
+                RemoveValue = function(_,v)
+                    for _,btn in ipairs(listFrame:GetChildren()) do
+                        if btn:IsA("TextButton") and btn.Text==v then btn:Destroy() end
+                    end
+                end,
+                ClearValues = function()
+                    for _,btn in ipairs(listFrame:GetChildren()) do
+                        if btn:IsA("TextButton") then btn:Destroy() end
+                    end
+                end,
+                SetSearchHook = function(_,fn) searchHook = fn end,
+                ResetSearchHook = function() searchHook = nil end,
+                Destroy = function() container:Destroy() end
+            }
+            return dropdownWrapper
+        end
+
+        return TAB
+    end -- CreateTab
+
+    -------------------------------------------------------------------
+    return windowAPI
+end -- CreateWindow
+
+-----------------------------------------------------------------------
+return Library  --  « require » this module to build UI
