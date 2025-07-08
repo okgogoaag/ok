@@ -1,0 +1,1866 @@
+--[[
+    Neverlose UI Library - Revamped v2.0 Beta
+
+    Description: A modern, sleek, dark-themed UI library for Roblox,
+                 inspired by the Neverlose aesthetic, with enhanced
+                 features and improved code quality.
+
+    Features:
+    -   Draggable Window
+    -   Tabbed Navigation (Tab Sections, Tabs)
+    -   Interactive Elements:
+        -   Button
+        -   Toggle (Modern Switch)
+        -   Slider (with value input)
+        -   NumberBox (Increment/Decrement)
+        -   Dropdown (Single selection)
+        -   MultiDropdown (Multiple selections)
+        -   Textbox
+        -   Colorpicker (HSV picker with Hex input/copy)
+        -   Keybind
+        -   Label (Display text)
+        -   Separator (Visual line)
+
+    Usage:
+    local UI = require(path.to.this.script) -- Adjust path if not in StarterPlayerScripts
+
+    local Window = UI:Window({
+        text = "YOUR CLIENT NAME", -- Title of your UI
+    })
+
+    local MainTabSection = Window:TabSection({
+        text = "MAIN SETTINGS",
+    })
+
+    local CombatTab = MainTabSection:Tab({
+        text = "Combat",
+        icon = "rbxassetid://1553594273", -- Example icon ID (folder icon)
+    })
+
+    local CombatSection = CombatTab:Section({
+        text = "Aimbot Settings",
+        LayoutOrder = 1 -- Controls position within the grid layout
+    })
+
+    CombatSection:Toggle({
+        text = "Enable Aimbot",
+        default = true,
+        callback = function(state)
+            print("Aimbot enabled:", state)
+        end
+    })
+
+    CombatSection:Slider({
+        text = "Aimbot FOV",
+        min = 10,
+        max = 180,
+        default = 90,
+        float = 1, -- Rounds to nearest integer
+        callback = function(value)
+            print("Aimbot FOV:", value)
+        end
+    })
+
+    CombatSection:Dropdown({
+        text = "Target Part",
+        default = "Head",
+        list = {"Head", "Torso", "HumanoidRootPart"},
+        callback = function(value)
+            print("Target Part:", value)
+        end
+    })
+
+    CombatSection:NumberBox({
+        text = "Hit Chance",
+        min = 0,
+        max = 100,
+        default = 80,
+        step = 5,
+        callback = function(value)
+            print("Hit Chance:", value .. "%")
+        end
+    })
+
+    local VisualsTab = MainTabSection:Tab({
+        text = "Visuals",
+        icon = "rbxassetid://1553594273", -- Example icon ID
+    })
+
+    local ESPSection = VisualsTab:Section({
+        text = "ESP Settings",
+        LayoutOrder = 1
+    })
+
+    ESPSection:Toggle({
+        text = "Player ESP",
+        default = false,
+        callback = function(state)
+            print("Player ESP:", state)
+        end
+    })
+
+    ESPSection:MultiDropdown({
+        text = "ESP Boxes",
+        list = {"Head", "Body", "Arms", "Legs"},
+        callback = function(selectedItems)
+            print("Selected ESP boxes:", table.concat(selectedItems, ", "))
+        end
+    })
+
+    ESPSection:Colorpicker({
+        text = "ESP Color",
+        default = Color3.fromRGB(0, 255, 0),
+        callback = function(color)
+            print("ESP Color:", color)
+        end
+    })
+
+    ESPSection:Textbox({
+        text = "ESP Font",
+        default = "Arial",
+        callback = function(text)
+            print("ESP Font set to:", text)
+        end
+    })
+
+    local MiscSection = VisualsTab:Section({
+        text = "Miscellaneous",
+        LayoutOrder = 2
+    })
+
+    MiscSection:Keybind({
+        text = "Toggle UI",
+        default = Enum.KeyCode.RightShift,
+        callback = function(key)
+            print("UI Toggled with:", key)
+            UI:ToggleVisibility()
+        end
+    })
+
+    MiscSection:Button({
+        text = "Execute Exploit",
+        callback = function()
+            print("Exploit executed!")
+            Notify("Exploit", "Executed successfully!")
+        end
+    })
+
+    MiscSection:Label({
+        text = "Current Version: " .. UI.Version,
+        color = Color3.fromRGB(150, 150, 150),
+        size = 12
+    })
+
+    MiscSection:Separator({}) -- Adds a thin line
+]]
+
+local UI = {}
+
+UI.Version = "v2.0 Beta" -- Updated version for the revamped UI
+
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local StarterGui = game:GetService("StarterGui")
+local CoreGui = game:GetService("CoreGui")
+
+-- Clear existing UI instances named "Neverlose"
+for i, v in next, CoreGui:GetChildren() do
+    if v:IsA("ScreenGui") and v.Name == "Neverlose" then
+        v:Destroy()
+    end
+end
+
+-- Constants for consistent styling
+local COLORS = {
+    BACKGROUND_PRIMARY = Color3.fromRGB(24, 25, 30),
+    BACKGROUND_SECONDARY = Color3.fromRGB(30, 31, 38),
+    BACKGROUND_TERTIARY = Color3.fromRGB(40, 41, 48), -- For elements like dropdowns, textboxes
+    ACCENT_BLUE = Color3.fromRGB(0, 120, 255),
+    ACCENT_GREEN = Color3.fromRGB(0, 180, 0),
+    TEXT_PRIMARY = Color3.fromRGB(255, 255, 255),
+    TEXT_SECONDARY = Color3.fromRGB(180, 180, 180),
+    TEXT_DISABLED = Color3.fromRGB(100, 100, 100),
+    BORDER_COLOR = Color3.fromRGB(35, 36, 42),
+    SLIDER_FILL = Color3.fromRGB(0, 120, 255),
+    SLIDER_TRACK = Color3.fromRGB(50, 50, 60),
+    TOGGLE_ON = Color3.fromRGB(0, 120, 255),
+    TOGGLE_OFF = Color3.fromRGB(70, 70, 70),
+    TOGGLE_BACKGROUND_ON = Color3.fromRGB(0, 80, 180),
+    TOGGLE_BACKGROUND_OFF = Color3.fromRGB(35, 35, 45),
+}
+
+local CORNER_RADIUS = 6
+local PADDING = 10
+local BUTTON_HEIGHT = 28
+local SECTION_HEADER_HEIGHT = 25
+
+-- Notification function
+local function Notify(title, text)
+    StarterGui:SetCore("SendNotification", {
+        Title = title,
+        Text = text,
+        Duration = 5
+    })
+end
+
+-- Generic Dragify function for any UI element
+local function Dragify(frame, parent)
+    parent = parent or frame
+
+    local dragging = false
+    local initialMousePosition, initialFramePosition
+
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            initialMousePosition = input.Position
+            initialFramePosition = parent.Position
+
+            local inputChangedConn
+            inputChangedConn = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                    if inputChangedConn then
+                        inputChangedConn:Disconnect()
+                        inputChangedConn = nil
+                    end
+                end
+            end)
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+            local delta = input.Position - initialMousePosition
+            parent.Position = UDim2.new(
+                initialFramePosition.X.Scale, initialFramePosition.X.Offset + delta.X,
+                initialFramePosition.Y.Scale, initialFramePosition.Y.Offset + delta.Y
+            )
+        end
+    end)
+end
+
+-- Round function for numbers (e.g., for slider values)
+local function round(num, bracket)
+    bracket = bracket or 1
+    if bracket == 0 then return num end -- Avoid division by zero
+    return math.round(num / bracket) * bracket
+end
+
+-- Generic hover effect for text labels/buttons
+local function hoverEffect(element, targetColor, defaultColor)
+    element.MouseEnter:Connect(function()
+        TweenService:Create(element, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            TextColor3 = targetColor
+        }):Play()
+    end)
+    element.MouseLeave:Connect(function()
+        TweenService:Create(element, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            TextColor3 = defaultColor
+        }):Play()
+    end)
+end
+
+-- Generic click effect for buttons (slight scale down and back up)
+local function clickEffect(button, scaleAmount)
+    scaleAmount = scaleAmount or 0.95
+    button.MouseButton1Click:Connect(function()
+        local originalSize = button.Size
+        local newSize = UDim2.new(originalSize.X.Scale * scaleAmount, originalSize.X.Offset * scaleAmount, originalSize.Y.Scale * scaleAmount, originalSize.Y.Offset * scaleAmount)
+
+        TweenService:Create(button, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = newSize}):Play()
+        task.wait(0.1)
+        TweenService:Create(button, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = originalSize}):Play()
+    end)
+end
+
+-- Helper to create UI instances with properties
+local function create(instanceType, properties)
+    local instance = Instance.new(instanceType)
+    for prop, value in pairs(properties) do
+        instance[prop] = value
+    end
+    return instance
+end
+
+-- Main UI Class Definition
+function UI:ToggleVisibility(value)
+    local neverloseGui = CoreGui:FindFirstChild("Neverlose")
+    if not neverloseGui then return end
+
+    local enabled = (type(value) == "boolean" and value) or neverloseGui.Enabled
+    neverloseGui.Enabled = not enabled
+end
+
+function UI:Window(options)
+    options = options or {}
+    options.text = options.text or "NEVERLOSE UI"
+
+    local SG = create("ScreenGui", {
+        Name = "Neverlose",
+        Parent = CoreGui,
+        DisplayOrder = 999
+    })
+
+    local Body = create("Frame", {
+        Name = "Body",
+        Parent = SG,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = COLORS.BACKGROUND_PRIMARY,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = UDim2.new(0, 700, 0, 500)
+    })
+    create("UICorner", { CornerRadius = UDim.new(0, CORNER_RADIUS), Parent = Body })
+
+    -- SideBar for tabs
+    local SideBar = create("Frame", {
+        Name = "SideBar",
+        Parent = Body,
+        BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+        BorderSizePixel = 0,
+        Size = UDim2.new(0, 180, 1, 0), -- 180px width, full height
+    })
+    create("UICorner", { CornerRadius = UDim.new(0, CORNER_RADIUS), Parent = SideBar })
+
+    -- SideBar Title
+    create("TextLabel", {
+        Name = "Title",
+        Parent = SideBar,
+        BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, 0, PADDING),
+        Size = UDim2.new(1, 0, 0, 40),
+        Font = Enum.Font.GothamBold,
+        Text = options.text,
+        TextColor3 = COLORS.TEXT_PRIMARY,
+        TextSize = 24,
+        TextXAlignment = Enum.TextXAlignment.Center
+    })
+
+    -- SideBar Title Separator
+    create("Frame", {
+        Name = "TitleSeparator",
+        Parent = SideBar,
+        BackgroundColor3 = COLORS.BORDER_COLOR,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.1, 0, 0, 40 + PADDING / 2),
+        Size = UDim2.new(0.8, 0, 0, 1)
+    })
+
+    -- Container for tab buttons
+    local tabContainer = create("Frame", {
+        Name = "TabContainer",
+        Parent = SideBar,
+        BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, 0, 40 + PADDING * 2),
+        Size = UDim2.new(1, 0, 1, -(40 + PADDING * 2)), -- Fill remaining space
+        ClipsDescendants = true
+    })
+
+    create("UIListLayout", {
+        Name = "TabListLayout",
+        Parent = tabContainer,
+        FillDirection = Enum.FillDirection.Vertical,
+        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+        Padding = UDim.new(0, PADDING / 2),
+        SortOrder = Enum.SortOrder.LayoutOrder
+    })
+
+    -- TopBar for dragging the main window (invisible)
+    local TopBarHandle = create("Frame", {
+        Name = "TopBarHandle",
+        Parent = Body,
+        BackgroundColor3 = COLORS.BACKGROUND_PRIMARY,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, SideBar.Size.X.Offset, 0, 0),
+        Size = UDim2.new(1, -SideBar.Size.X.Offset, 0, 40)
+    })
+    Dragify(TopBarHandle, Body)
+
+    -- Container for all tab pages (content)
+    local allPages = create("Frame", {
+        Name = "AllPages",
+        Parent = Body,
+        BackgroundColor3 = COLORS.BACKGROUND_PRIMARY,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, SideBar.Size.X.Offset + PADDING, 0, 40 + PADDING),
+        Size = UDim2.new(1, -(SideBar.Size.X.Offset + PADDING * 2), 1, -(40 + PADDING * 2)),
+        ClipsDescendants = true
+    })
+
+    local currentActiveTabButton = nil
+
+    local tabsections = {}
+    function tabsections:TabSection(options)
+        options = options or {}
+        options.text = options.text or "Tab Section"
+
+        local tabSectionFrame = create("Frame", {
+            Name = "TabSection_" .. options.text:gsub("%s+", "_"),
+            Parent = tabContainer,
+            BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            Size = UDim2.new(0.9, 0, 0, SECTION_HEADER_HEIGHT), -- Initial size, will be resized by tabs
+            AutomaticSize = Enum.AutomaticSize.Y
+        })
+
+        create("UIListLayout", {
+            Name = "TabSectionLayout",
+            Parent = tabSectionFrame,
+            FillDirection = Enum.FillDirection.Vertical,
+            HorizontalAlignment = Enum.HorizontalAlignment.Center,
+            Padding = UDim.new(0, PADDING / 4),
+            SortOrder = Enum.SortOrder.LayoutOrder
+        })
+
+        create("TextLabel", {
+            Name = "SectionLabel",
+            Parent = tabSectionFrame,
+            BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            Size = UDim2.new(1, 0, 0, SECTION_HEADER_HEIGHT),
+            Font = Enum.Font.GothamMedium,
+            Text = options.text,
+            TextColor3 = COLORS.TEXT_SECONDARY,
+            TextSize = 14,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextWrapped = true,
+            TextScaled = false,
+            LayoutOrder = 0
+        })
+
+        local tabs = {}
+        function tabs:Tab(options)
+            options = options or {}
+            options.text = options.text or "New Tab"
+            options.icon = options.icon or "rbxassetid://1553594273" -- Default folder icon
+
+            local tabButton = create("TextButton", {
+                Name = "TabButton_" .. options.text:gsub("%s+", "_"),
+                Parent = tabSectionFrame,
+                BackgroundColor3 = COLORS.BACKGROUND_PRIMARY,
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                Size = UDim2.new(0.95, 0, 0, BUTTON_HEIGHT),
+                AutoButtonColor = false,
+                Font = Enum.Font.GothamMedium,
+                Text = "        " .. options.text, -- Padding for icon
+                TextColor3 = COLORS.TEXT_SECONDARY,
+                TextSize = 14,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextWrapped = true,
+                TextScaled = false,
+                LayoutOrder = options.LayoutOrder
+            })
+            create("UICorner", { CornerRadius = UDim.new(0, CORNER_RADIUS - 2), Parent = tabButton })
+            hoverEffect(tabButton, COLORS.TEXT_PRIMARY, COLORS.TEXT_SECONDARY)
+
+            create("ImageLabel", {
+                Name = "TabIcon",
+                Parent = tabButton,
+                BackgroundColor3 = COLORS.BACKGROUND_PRIMARY,
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                Position = UDim2.new(0, PADDING, 0.5, 0),
+                Size = UDim2.new(0, 18, 0, 18),
+                Image = options.icon,
+                ImageColor3 = COLORS.ACCENT_BLUE,
+                AnchorPoint = Vector2.new(0, 0.5)
+            })
+
+            local newPage = create("ScrollingFrame", {
+                Name = "Page_" .. options.text:gsub("%s+", "_"),
+                Parent = allPages,
+                Visible = false,
+                BackgroundColor3 = COLORS.BACKGROUND_PRIMARY,
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                CanvasSize = UDim2.new(0, 0, 0, 0),
+                Size = UDim2.new(1, 0, 1, 0),
+                ScrollBarThickness = 6,
+                ScrollBarImageColor3 = COLORS.ACCENT_BLUE,
+                ScrollingDirection = Enum.ScrollingDirection.Y,
+                AutomaticCanvasSize = Enum.AutomaticCanvasSize.Y
+            })
+
+            local pageLayout = create("UIGridLayout", {
+                Name = "PageGridLayout",
+                Parent = newPage,
+                FillDirection = Enum.FillDirection.Horizontal,
+                HorizontalAlignment = Enum.HorizontalAlignment.Left,
+                VerticalAlignment = Enum.VerticalAlignment.Top,
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                CellPadding = UDim2.new(0, PADDING, 0, PADDING),
+                CellSize = UDim2.new(0.5, -PADDING, 0, 0), -- Two columns, adjusted for padding
+            })
+
+            tabButton.MouseButton1Click:Connect(function()
+                if currentActiveTabButton then
+                    TweenService:Create(currentActiveTabButton, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                        BackgroundColor3 = COLORS.BACKGROUND_PRIMARY,
+                        TextColor3 = COLORS.TEXT_SECONDARY
+                    }):Play()
+                    local icon = currentActiveTabButton:FindFirstChild("TabIcon")
+                    if icon then
+                        TweenService:Create(icon, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                            ImageColor3 = COLORS.ACCENT_BLUE
+                        }):Play()
+                    end
+                end
+
+                for _, page in next, allPages:GetChildren() do
+                    if page:IsA("ScrollingFrame") then
+                        page.Visible = false
+                    end
+                end
+
+                TweenService:Create(tabButton, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    BackgroundColor3 = COLORS.ACCENT_BLUE,
+                    TextColor3 = COLORS.TEXT_PRIMARY
+                }):Play()
+                local icon = tabButton:FindFirstChild("TabIcon")
+                if icon then
+                    TweenService:Create(icon, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                        ImageColor3 = COLORS.TEXT_PRIMARY
+                    }):Play()
+                end
+                currentActiveTabButton = tabButton
+
+                newPage.Visible = true
+            end)
+
+            -- Automatically select the first tab
+            if not currentActiveTabButton then
+                tabButton.MouseButton1Click:Fire()
+            end
+
+            local sections = {}
+            function sections:Section(options)
+                options = options or {}
+                options.text = options.text or "Section"
+                options.LayoutOrder = options.LayoutOrder or 0
+
+                local sectionFrame = create("Frame", {
+                    Name = "Section_" .. options.text:gsub("%s+", "_"),
+                    Parent = newPage,
+                    BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+                    BorderSizePixel = 0,
+                    Size = UDim2.new(1, 0, 0, 0),
+                    AutomaticSize = Enum.AutomaticSize.Y,
+                    LayoutOrder = options.LayoutOrder
+                })
+                create("UICorner", { CornerRadius = UDim.new(0, CORNER_RADIUS), Parent = sectionFrame })
+
+                create("UIListLayout", {
+                    Name = "SectionLayout",
+                    Parent = sectionFrame,
+                    FillDirection = Enum.FillDirection.Vertical,
+                    HorizontalAlignment = Enum.HorizontalAlignment.Left,
+                    Padding = UDim.new(0, PADDING / 2),
+                    SortOrder = Enum.SortOrder.LayoutOrder
+                })
+
+                -- Section Header
+                create("TextLabel", {
+                    Name = "SectionHeader",
+                    Parent = sectionFrame,
+                    BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    Size = UDim2.new(1, -PADDING * 2, 0, SECTION_HEADER_HEIGHT),
+                    Position = UDim2.new(0, PADDING, 0, 0),
+                    Font = Enum.Font.GothamBold,
+                    Text = options.text,
+                    TextColor3 = COLORS.ACCENT_BLUE,
+                    TextSize = 16,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextWrapped = true,
+                    TextScaled = false,
+                    LayoutOrder = 0
+                })
+
+                -- Section Header Separator
+                create("Frame", {
+                    Name = "SectionHeaderSeparator",
+                    Parent = sectionFrame,
+                    BackgroundColor3 = COLORS.BORDER_COLOR,
+                    BorderSizePixel = 0,
+                    Size = UDim2.new(1, -PADDING * 2, 0, 1),
+                    Position = UDim2.new(0, PADDING, 0, 0),
+                    LayoutOrder = 1
+                })
+
+                local elements = {}
+
+                -- Label Element
+                function elements:Label(options)
+                    options = options or {}
+                    options.text = options.text or "Label"
+                    options.color = options.color or COLORS.TEXT_SECONDARY
+                    options.size = options.size or 14
+
+                    create("TextLabel", {
+                        Name = "Label_" .. options.text:gsub("%s+", "_"),
+                        Parent = sectionFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(1, -PADDING * 2, 0, 20),
+                        Position = UDim2.new(0, PADDING, 0, 0),
+                        Font = Enum.Font.Gotham,
+                        Text = options.text,
+                        TextColor3 = options.color,
+                        TextSize = options.size,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextWrapped = true,
+                        TextScaled = false,
+                        LayoutOrder = options.LayoutOrder
+                    })
+                end
+
+                -- Separator Element
+                function elements:Separator(options)
+                    options = options or {}
+                    options.height = options.height or 1
+                    options.color = options.color or COLORS.BORDER_COLOR
+                    options.padding = options.padding or 5
+
+                    create("Frame", {
+                        Name = "Separator",
+                        Parent = sectionFrame,
+                        BackgroundColor3 = options.color,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(1, -PADDING * 2, 0, options.height),
+                        Position = UDim2.new(0, PADDING, 0, options.padding),
+                        LayoutOrder = options.LayoutOrder
+                    })
+                end
+
+                -- Button Element
+                function elements:Button(options)
+                    options = options or {}
+                    if not options.text or not options.callback then Notify("Button", "Missing arguments!") return end
+
+                    local button = create("TextButton", {
+                        Name = "Button_" .. options.text:gsub("%s+", "_"),
+                        Parent = sectionFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_TERTIARY,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(1, -PADDING * 2, 0, BUTTON_HEIGHT),
+                        Position = UDim2.new(0, PADDING, 0, 0),
+                        AutoButtonColor = false,
+                        Font = Enum.Font.GothamMedium,
+                        Text = options.text,
+                        TextColor3 = COLORS.TEXT_PRIMARY,
+                        TextSize = 14,
+                        TextWrapped = true,
+                        LayoutOrder = options.LayoutOrder
+                    })
+                    create("UICorner", { CornerRadius = UDim.new(0, CORNER_RADIUS - 2), Parent = button })
+                    hoverEffect(button, COLORS.ACCENT_BLUE, COLORS.TEXT_PRIMARY)
+                    clickEffect(button, 0.98)
+
+                    button.MouseButton1Click:Connect(function()
+                        options.callback()
+                    end)
+                end
+
+                -- Toggle Element (Modern Switch)
+                function elements:Toggle(options)
+                    options = options or {}
+                    if not options.text or not options.callback then Notify("Toggle", "Missing arguments!") return end
+
+                    local State = options.default or false
+
+                    local toggleFrame = create("Frame", {
+                        Name = "Toggle_" .. options.text:gsub("%s+", "_"),
+                        Parent = sectionFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(1, -PADDING * 2, 0, BUTTON_HEIGHT),
+                        Position = UDim2.new(0, PADDING, 0, 0),
+                        LayoutOrder = options.LayoutOrder
+                    })
+
+                    local toggleLabel = create("TextLabel", {
+                        Name = "Label",
+                        Parent = toggleFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(1, -40, 1, 0),
+                        Position = UDim2.new(0, 0, 0, 0),
+                        Font = Enum.Font.Gotham,
+                        Text = options.text,
+                        TextColor3 = State and COLORS.TEXT_PRIMARY or COLORS.TEXT_SECONDARY,
+                        TextSize = 14,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextWrapped = true
+                    })
+                    hoverEffect(toggleLabel, COLORS.ACCENT_BLUE, State and COLORS.TEXT_PRIMARY or COLORS.TEXT_SECONDARY)
+
+                    local switchBg = create("TextButton", {
+                        Name = "SwitchBackground",
+                        Parent = toggleFrame,
+                        BackgroundColor3 = State and COLORS.TOGGLE_BACKGROUND_ON or COLORS.TOGGLE_BACKGROUND_OFF,
+                        BorderSizePixel = 0,
+                        AnchorPoint = Vector2.new(1, 0.5),
+                        Position = UDim2.new(1, 0, 0.5, 0),
+                        Size = UDim2.new(0, 38, 0, 18),
+                        AutoButtonColor = false,
+                        Text = "",
+                        ZIndex = 2
+                    })
+                    create("UICorner", { CornerRadius = UDim.new(0, 50), Parent = switchBg })
+
+                    local switchHandle = create("TextButton", {
+                        Name = "SwitchHandle",
+                        Parent = switchBg,
+                        BackgroundColor3 = State and COLORS.TOGGLE_ON or COLORS.TOGGLE_OFF,
+                        BorderSizePixel = 0,
+                        AnchorPoint = Vector2.new(0.5, 0.5),
+                        Position = State and UDim2.new(0.74, 0, 0.5, 0) or UDim2.new(0.25, 0, 0.5, 0),
+                        Size = UDim2.new(0, 16, 0, 16),
+                        AutoButtonColor = false,
+                        Text = "",
+                        ZIndex = 3
+                    })
+                    create("UICorner", { CornerRadius = UDim.new(0, 50), Parent = switchHandle })
+
+                    local function PerformToggle()
+                        State = not State
+                        options.callback(State)
+
+                        TweenService:Create(switchHandle, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+                            Position = State and UDim2.new(0.74, 0, 0.5, 0) or UDim2.new(0.25, 0, 0.5, 0)
+                        }):Play()
+                        TweenService:Create(toggleLabel, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                            TextColor3 = State and COLORS.TEXT_PRIMARY or COLORS.TEXT_SECONDARY
+                        }):Play()
+                        TweenService:Create(switchHandle, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = State and COLORS.TOGGLE_ON or COLORS.TOGGLE_OFF
+                        }):Play()
+                        TweenService:Create(switchBg, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = State and COLORS.TOGGLE_BACKGROUND_ON or COLORS.TOGGLE_BACKGROUND_OFF
+                        }):Play()
+                    end
+
+                    switchBg.MouseButton1Click:Connect(PerformToggle)
+                    switchHandle.MouseButton1Click:Connect(PerformToggle)
+                end
+
+                -- Slider Element
+                function elements:Slider(options)
+                    options = options or {}
+                    if not options.text or options.min == nil or options.max == nil or not options.callback then Notify("Slider", "Missing arguments!") return end
+
+                    options.default = options.default or options.min
+                    options.float = options.float or 0.01
+
+                    local Value = options.default
+                    local Held = false
+
+                    local sliderFrame = create("Frame", {
+                        Name = "Slider_" .. options.text:gsub("%s+", "_"),
+                        Parent = sectionFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(1, -PADDING * 2, 0, BUTTON_HEIGHT * 1.5),
+                        Position = UDim2.new(0, PADDING, 0, 0),
+                        LayoutOrder = options.LayoutOrder
+                    })
+
+                    local sliderLabel = create("TextLabel", {
+                        Name = "Label",
+                        Parent = sliderFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(0.7, 0, 0, BUTTON_HEIGHT / 1.2),
+                        Position = UDim2.new(0, 0, 0, 0),
+                        Font = Enum.Font.Gotham,
+                        Text = options.text,
+                        TextColor3 = COLORS.TEXT_SECONDARY,
+                        TextSize = 14,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextWrapped = true
+                    })
+                    hoverEffect(sliderLabel, COLORS.ACCENT_BLUE, COLORS.TEXT_SECONDARY)
+
+                    local valueTextBox = create("TextBox", {
+                        Name = "ValueTextBox",
+                        Parent = sliderFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_TERTIARY,
+                        TextColor3 = COLORS.TEXT_PRIMARY,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(0.25, 0, 0, BUTTON_HEIGHT / 1.5),
+                        AnchorPoint = Vector2.new(1, 0),
+                        Position = UDim2.new(1, 0, 0, 0),
+                        Font = Enum.Font.Gotham,
+                        Text = tostring(round(Value, options.float)),
+                        TextSize = 12,
+                        TextXAlignment = Enum.TextXAlignment.Center,
+                        ClearTextOnFocus = false,
+                        ZIndex = 2
+                    })
+                    create("UICorner", { CornerRadius = UDim.new(0, CORNER_RADIUS - 2), Parent = valueTextBox })
+
+                    local trackFrame = create("Frame", {
+                        Name = "Track",
+                        Parent = sliderFrame,
+                        BackgroundColor3 = COLORS.SLIDER_TRACK,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(1, 0, 0, 4),
+                        Position = UDim2.new(0, 0, 1, -(BUTTON_HEIGHT / 2) - PADDING / 2),
+                        ZIndex = 1
+                    })
+                    create("UICorner", { CornerRadius = UDim.new(0, 50), Parent = trackFrame })
+
+                    local fillFrame = create("Frame", {
+                        Name = "Fill",
+                        Parent = trackFrame,
+                        BackgroundColor3 = COLORS.SLIDER_FILL,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(0, 0, 1, 0),
+                        ZIndex = 2
+                    })
+                    create("UICorner", { CornerRadius = UDim.new(0, 50), Parent = fillFrame })
+
+                    local handleButton = create("TextButton", {
+                        Name = "Handle",
+                        Parent = trackFrame,
+                        BackgroundColor3 = COLORS.SLIDER_FILL,
+                        BorderSizePixel = 0,
+                        AnchorPoint = Vector2.new(0.5, 0.5),
+                        Position = UDim2.new(0, 0, 0.5, 0),
+                        Size = UDim2.new(0, 12, 0, 12),
+                        AutoButtonColor = false,
+                        Text = "",
+                        ZIndex = 3
+                    })
+                    create("UICorner", { CornerRadius = UDim.new(0, 50), Parent = handleButton })
+
+                    local function updateSlider(mousePos)
+                        local trackWidth = trackFrame.AbsoluteSize.X
+                        local trackPosX = trackFrame.AbsolutePosition.X
+
+                        local x = math.clamp(mousePos.X - trackPosX, 0, trackWidth)
+                        local percentage = x / trackWidth
+
+                        Value = options.min + (options.max - options.min) * percentage
+                        Value = round(Value, options.float)
+                        Value = math.clamp(Value, options.min, options.max)
+
+                        valueTextBox.Text = tostring(Value)
+                        options.callback(Value)
+
+                        local handleX = (Value - options.min) / (options.max - options.min)
+                        handleButton.Position = UDim2.new(handleX, 0, 0.5, 0)
+                        fillFrame.Size = UDim2.new(handleX, 0, 1, 0)
+                    end
+
+                    local inputChangedConn, inputEndedConn
+
+                    local function onInputBegan(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                            Held = true
+                            inputChangedConn = UserInputService.InputChanged:Connect(function(inputObject)
+                                if Held and inputObject.UserInputType == Enum.UserInputType.MouseMovement then
+                                    updateSlider(inputObject.Position)
+                                end
+                            end)
+                            inputEndedConn = UserInputService.InputEnded:Connect(function(inputObject)
+                                if inputObject.UserInputType == Enum.UserInputType.MouseButton1 then
+                                    Held = false
+                                    if inputChangedConn then inputChangedConn:Disconnect() end
+                                    if inputEndedConn then inputEndedConn:Disconnect() end
+                                end
+                            end)
+                            updateSlider(input.Position)
+                        end
+                    end
+
+                    handleButton.InputBegan:Connect(onInputBegan)
+                    trackFrame.InputBegan:Connect(onInputBegan)
+
+                    valueTextBox.Focused:Connect(function()
+                        TweenService:Create(sliderLabel, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = COLORS.TEXT_PRIMARY}):Play()
+                    end)
+                    valueTextBox.FocusLost:Connect(function(enterPressed)
+                        TweenService:Create(sliderLabel, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = COLORS.TEXT_SECONDARY}):Play()
+                        if enterPressed then
+                            local parsedValue = tonumber(valueTextBox.Text)
+                            if parsedValue ~= nil then
+                                local clampedValue = math.clamp(parsedValue, options.min, options.max)
+                                Value = round(clampedValue, options.float)
+                                valueTextBox.Text = tostring(Value)
+                                options.callback(Value)
+
+                                local handleX = (Value - options.min) / (options.max - options.min)
+                                handleButton.Position = UDim2.new(handleX, 0, 0.5, 0)
+                                fillFrame.Size = UDim2.new(handleX, 0, 1, 0)
+                            else
+                                Notify("Invalid Input", "Please enter a valid number for the slider.")
+                                valueTextBox.Text = tostring(Value)
+                            end
+                        end
+                    end)
+
+                    updateSlider(Vector2.new(
+                        trackFrame.AbsolutePosition.X + (Value - options.min) / (options.max - options.min) * trackFrame.AbsoluteSize.X,
+                        trackFrame.AbsolutePosition.Y
+                    ))
+                end
+
+                -- NumberBox (Increment/Decrement)
+                function elements:NumberBox(options)
+                    options = options or {}
+                    if not options.text or options.min == nil or options.max == nil or not options.callback then Notify("NumberBox", "Missing arguments!") return end
+
+                    options.default = options.default or options.min
+                    options.step = options.step or 1
+
+                    local Value = options.default
+
+                    local numberBoxFrame = create("Frame", {
+                        Name = "NumberBox_" .. options.text:gsub("%s+", "_"),
+                        Parent = sectionFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(1, -PADDING * 2, 0, BUTTON_HEIGHT),
+                        Position = UDim2.new(0, PADDING, 0, 0),
+                        LayoutOrder = options.LayoutOrder
+                    })
+
+                    local numberLabel = create("TextLabel", {
+                        Name = "Label",
+                        Parent = numberBoxFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(0.6, 0, 1, 0),
+                        Position = UDim2.new(0, 0, 0, 0),
+                        Font = Enum.Font.Gotham,
+                        Text = options.text,
+                        TextColor3 = COLORS.TEXT_SECONDARY,
+                        TextSize = 14,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextWrapped = true
+                    })
+                    hoverEffect(numberLabel, COLORS.ACCENT_BLUE, COLORS.TEXT_SECONDARY)
+
+                    local valueTextBox = create("TextBox", {
+                        Name = "ValueTextBox",
+                        Parent = numberBoxFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_TERTIARY,
+                        TextColor3 = COLORS.TEXT_PRIMARY,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(0.25, 0, 1, 0),
+                        AnchorPoint = Vector2.new(1, 0),
+                        Position = UDim2.new(1, 0, 0, 0),
+                        Font = Enum.Font.Gotham,
+                        Text = tostring(Value),
+                        TextSize = 12,
+                        TextXAlignment = Enum.TextXAlignment.Center,
+                        ClearTextOnFocus = false,
+                        ZIndex = 2
+                    })
+                    create("UICorner", { CornerRadius = UDim.new(0, CORNER_RADIUS - 2), Parent = valueTextBox })
+
+                    local function updateValue(newValue)
+                        Value = math.clamp(newValue, options.min, options.max)
+                        valueTextBox.Text = tostring(Value)
+                        options.callback(Value)
+                    end
+
+                    valueTextBox.Focused:Connect(function()
+                        TweenService:Create(numberLabel, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = COLORS.TEXT_PRIMARY}):Play()
+                    end)
+                    valueTextBox.FocusLost:Connect(function(enterPressed)
+                        TweenService:Create(numberLabel, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = COLORS.TEXT_SECONDARY}):Play()
+                        if enterPressed then
+                            local parsedValue = tonumber(valueTextBox.Text)
+                            if parsedValue ~= nil then
+                                updateValue(parsedValue)
+                            else
+                                Notify("Invalid Input", "Please enter a valid number.")
+                                valueTextBox.Text = tostring(Value)
+                            end
+                        end
+                    end)
+
+                    local decrementButton = create("TextButton", {
+                        Name = "Decrement",
+                        Parent = valueTextBox,
+                        BackgroundColor3 = COLORS.BACKGROUND_TERTIARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        AnchorPoint = Vector2.new(0, 0.5),
+                        Position = UDim2.new(-1, 0, 0.5, 0),
+                        Size = UDim2.new(0, 15, 0, 15),
+                        AutoButtonColor = false,
+                        Font = Enum.Font.GothamBold,
+                        Text = "-",
+                        TextColor3 = COLORS.TEXT_PRIMARY,
+                        TextSize = 14,
+                        ZIndex = 3
+                    })
+                    hoverEffect(decrementButton, COLORS.ACCENT_BLUE, COLORS.TEXT_PRIMARY)
+                    clickEffect(decrementButton, 0.9)
+                    decrementButton.MouseButton1Click:Connect(function()
+                        updateValue(Value - options.step)
+                    end)
+
+                    local incrementButton = create("TextButton", {
+                        Name = "Increment",
+                        Parent = valueTextBox,
+                        BackgroundColor3 = COLORS.BACKGROUND_TERTIARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        AnchorPoint = Vector2.new(0, 0.5),
+                        Position = UDim2.new(1, 0, 0.5, 0),
+                        Size = UDim2.new(0, 15, 0, 15),
+                        AutoButtonColor = false,
+                        Font = Enum.Font.GothamBold,
+                        Text = "+",
+                        TextColor3 = COLORS.TEXT_PRIMARY,
+                        TextSize = 14,
+                        ZIndex = 3
+                    })
+                    hoverEffect(incrementButton, COLORS.ACCENT_BLUE, COLORS.TEXT_PRIMARY)
+                    clickEffect(incrementButton, 0.9)
+                    incrementButton.MouseButton1Click:Connect(function()
+                        updateValue(Value + options.step)
+                    end)
+                end
+
+                -- Dropdown Element (Single Selection)
+                function elements:Dropdown(options)
+                    options = options or {}
+                    if not options.text or not options.default or not options.list or not options.callback then Notify("Dropdown", "Missing arguments!") return end
+
+                    local Dropped = false
+                    local DropdownYOffset = BUTTON_HEIGHT
+
+                    local dropdownFrame = create("Frame", {
+                        Name = "Dropdown_" .. options.text:gsub("%s+", "_"),
+                        Parent = sectionFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(1, -PADDING * 2, 0, DropdownYOffset),
+                        Position = UDim2.new(0, PADDING, 0, 0),
+                        ClipsDescendants = false,
+                        LayoutOrder = options.LayoutOrder
+                    })
+
+                    local dropdownLabel = create("TextLabel", {
+                        Name = "Label",
+                        Parent = dropdownFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(0.6, 0, 1, 0),
+                        Position = UDim2.new(0, 0, 0, 0),
+                        Font = Enum.Font.Gotham,
+                        Text = options.text,
+                        TextColor3 = COLORS.TEXT_SECONDARY,
+                        TextSize = 14,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextWrapped = true
+                    })
+                    hoverEffect(dropdownLabel, COLORS.ACCENT_BLUE, COLORS.TEXT_SECONDARY)
+
+                    local dropdownButton = create("TextButton", {
+                        Name = "CurrentValueButton",
+                        Parent = dropdownFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_TERTIARY,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(0.4, 0, 1, 0),
+                        AnchorPoint = Vector2.new(1, 0),
+                        Position = UDim2.new(1, 0, 0, 0),
+                        AutoButtonColor = false,
+                        Font = Enum.Font.GothamMedium,
+                        Text = options.default,
+                        TextColor3 = COLORS.TEXT_PRIMARY,
+                        TextSize = 12,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextPadding = UDim.new(0, PADDING),
+                        ZIndex = 2
+                    })
+                    create("UICorner", { CornerRadius = UDim.new(0, CORNER_RADIUS - 2), Parent = dropdownButton })
+                    hoverEffect(dropdownButton, COLORS.ACCENT_BLUE, COLORS.TEXT_PRIMARY)
+
+                    local arrowIcon = create("ImageLabel", {
+                        Name = "ArrowIcon",
+                        Parent = dropdownButton,
+                        BackgroundColor3 = COLORS.BACKGROUND_TERTIARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        AnchorPoint = Vector2.new(1, 0.5),
+                        Position = UDim2.new(1, -PADDING, 0.5, 0),
+                        Size = UDim2.new(0, 12, 0, 12),
+                        Image = "rbxassetid://8008296380",
+                        ImageColor3 = COLORS.TEXT_PRIMARY,
+                        ZIndex = 3
+                    })
+
+                    local dropdownList = create("Frame", {
+                        Name = "DropdownList",
+                        Parent = dropdownFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_TERTIARY,
+                        BorderColor3 = COLORS.BORDER_COLOR,
+                        BorderSizePixel = 1,
+                        Size = UDim2.new(0.4, 0, 0, 0),
+                        AnchorPoint = Vector2.new(1, 0),
+                        Position = UDim2.new(1, 0, 1, 2),
+                        ClipsDescendants = true,
+                        ZIndex = 5
+                    })
+                    create("UICorner", { CornerRadius = UDim.new(0, CORNER_RADIUS - 2), Parent = dropdownList })
+
+                    create("UIListLayout", {
+                        Name = "ListLayout",
+                        Parent = dropdownList,
+                        FillDirection = Enum.FillDirection.Vertical,
+                        HorizontalAlignment = Enum.HorizontalAlignment.Left,
+                        Padding = UDim.new(0, 0),
+                        SortOrder = Enum.SortOrder.LayoutOrder
+                    })
+
+                    local maxListHeight = 0
+                    for i, v in next, options.list do
+                        local itemButton = create("TextButton", {
+                            Name = "Item_" .. v:gsub("%s+", "_"),
+                            Parent = dropdownList,
+                            BackgroundColor3 = COLORS.BACKGROUND_TERTIARY,
+                            BackgroundTransparency = 1,
+                            BorderSizePixel = 0,
+                            Size = UDim2.new(1, 0, 0, BUTTON_HEIGHT - 8),
+                            AutoButtonColor = false,
+                            Font = Enum.Font.GothamMedium,
+                            Text = v,
+                            TextColor3 = COLORS.TEXT_PRIMARY,
+                            TextSize = 12,
+                            TextXAlignment = Enum.TextXAlignment.Left,
+                            TextPadding = UDim.new(0, PADDING),
+                            ZIndex = 6
+                        })
+                        hoverEffect(itemButton, COLORS.ACCENT_BLUE, COLORS.TEXT_PRIMARY)
+                        clickEffect(itemButton, 0.98)
+
+                        itemButton.MouseButton1Click:Connect(function()
+                            dropdownButton.Text = v
+                            options.callback(v)
+                            Dropped = false
+                            TweenService:Create(dropdownList, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                                Size = UDim2.new(dropdownList.Size.X.Scale, dropdownList.Size.X.Offset, 0, 0)
+                            }):Play()
+                            TweenService:Create(arrowIcon, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Rotation = 0 }):Play()
+                        end)
+                        maxListHeight = maxListHeight + (BUTTON_HEIGHT - 8)
+                    end
+
+                    dropdownButton.MouseButton1Click:Connect(function()
+                        Dropped = not Dropped
+                        local targetRotation = Dropped and 180 or 0
+                        local targetHeight = Dropped and maxListHeight or 0
+
+                        TweenService:Create(dropdownList, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                            Size = UDim2.new(dropdownList.Size.X.Scale, dropdownList.Size.X.Offset, 0, targetHeight)
+                        }):Play()
+                        TweenService:Create(arrowIcon, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Rotation = targetRotation }):Play()
+
+                        TweenService:Create(dropdownLabel, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                            TextColor3 = Dropped and COLORS.TEXT_PRIMARY or COLORS.TEXT_SECONDARY
+                        }):Play()
+                    end)
+                end
+
+                -- Multi-Dropdown Element (Multiple Selections)
+                function elements:MultiDropdown(options)
+                    options = options or {}
+                    if not options.text or not options.list or not options.callback then Notify("MultiDropdown", "Missing arguments!") return end
+
+                    local Dropped = false
+                    local selectedItems = {}
+                    local MultiDropdownYOffset = BUTTON_HEIGHT
+
+                    local dropdownFrame = create("Frame", {
+                        Name = "MultiDropdown_" .. options.text:gsub("%s+", "_"),
+                        Parent = sectionFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(1, -PADDING * 2, 0, MultiDropdownYOffset),
+                        Position = UDim2.new(0, PADDING, 0, 0),
+                        ClipsDescendants = false,
+                        LayoutOrder = options.LayoutOrder
+                    })
+
+                    local dropdownLabel = create("TextLabel", {
+                        Name = "Label",
+                        Parent = dropdownFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(0.6, 0, 1, 0),
+                        Position = UDim2.new(0, 0, 0, 0),
+                        Font = Enum.Font.Gotham,
+                        Text = options.text,
+                        TextColor3 = COLORS.TEXT_SECONDARY,
+                        TextSize = 14,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextWrapped = true
+                    })
+                    hoverEffect(dropdownLabel, COLORS.ACCENT_BLUE, COLORS.TEXT_SECONDARY)
+
+                    local dropdownButton = create("TextButton", {
+                        Name = "SelectedValueButton",
+                        Parent = dropdownFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_TERTIARY,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(0.4, 0, 1, 0),
+                        AnchorPoint = Vector2.new(1, 0),
+                        Position = UDim2.new(1, 0, 0, 0),
+                        AutoButtonColor = false,
+                        Font = Enum.Font.GothamMedium,
+                        Text = "None",
+                        TextColor3 = COLORS.TEXT_PRIMARY,
+                        TextSize = 12,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextPadding = UDim.new(0, PADDING),
+                        ZIndex = 2
+                    })
+                    create("UICorner", { CornerRadius = UDim.new(0, CORNER_RADIUS - 2), Parent = dropdownButton })
+                    hoverEffect(dropdownButton, COLORS.ACCENT_BLUE, COLORS.TEXT_PRIMARY)
+
+                    local arrowIcon = create("ImageLabel", {
+                        Name = "ArrowIcon",
+                        Parent = dropdownButton,
+                        BackgroundColor3 = COLORS.BACKGROUND_TERTIARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        AnchorPoint = Vector2.new(1, 0.5),
+                        Position = UDim2.new(1, -PADDING, 0.5, 0),
+                        Size = UDim2.new(0, 12, 0, 12),
+                        Image = "rbxassetid://8008296380",
+                        ImageColor3 = COLORS.TEXT_PRIMARY,
+                        ZIndex = 3
+                    })
+
+                    local dropdownList = create("Frame", {
+                        Name = "MultiDropdownList",
+                        Parent = dropdownFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_TERTIARY,
+                        BorderColor3 = COLORS.BORDER_COLOR,
+                        BorderSizePixel = 1,
+                        Size = UDim2.new(0.4, 0, 0, 0),
+                        AnchorPoint = Vector2.new(1, 0),
+                        Position = UDim2.new(1, 0, 1, 2),
+                        ClipsDescendants = true,
+                        ZIndex = 5
+                    })
+                    create("UICorner", { CornerRadius = UDim.new(0, CORNER_RADIUS - 2), Parent = dropdownList })
+
+                    create("UIListLayout", {
+                        Name = "ListLayout",
+                        Parent = dropdownList,
+                        FillDirection = Enum.FillDirection.Vertical,
+                        HorizontalAlignment = Enum.HorizontalAlignment.Left,
+                        Padding = UDim.new(0, 0),
+                        SortOrder = Enum.SortOrder.LayoutOrder
+                    })
+
+                    local maxListHeight = 0
+                    local itemToggles = {}
+
+                    local function updateDisplayText()
+                        local displayText = table.concat(selectedItems, ", ")
+                        if #displayText == 0 then
+                            dropdownButton.Text = "None"
+                        else
+                            dropdownButton.Text = displayText
+                        end
+                    end
+
+                    for i, v in next, options.list do
+                        local itemFrame = create("Frame", {
+                            Name = "ItemFrame_" .. v:gsub("%s+", "_"),
+                            Parent = dropdownList,
+                            BackgroundColor3 = COLORS.BACKGROUND_TERTIARY,
+                            BackgroundTransparency = 1,
+                            BorderSizePixel = 0,
+                            Size = UDim2.new(1, 0, 0, BUTTON_HEIGHT - 8),
+                            ZIndex = 6
+                        })
+
+                        local itemLabel = create("TextLabel", {
+                            Name = "Label",
+                            Parent = itemFrame,
+                            BackgroundColor3 = COLORS.BACKGROUND_TERTIARY,
+                            BackgroundTransparency = 1,
+                            BorderSizePixel = 0,
+                            Size = UDim2.new(0.7, 0, 1, 0),
+                            Position = UDim2.new(0, PADDING, 0, 0),
+                            Font = Enum.Font.GothamMedium,
+                            Text = v,
+                            TextColor3 = COLORS.TEXT_PRIMARY,
+                            TextSize = 12,
+                            TextXAlignment = Enum.TextXAlignment.Left,
+                            ZIndex = 7
+                        })
+                        hoverEffect(itemLabel, COLORS.ACCENT_BLUE, COLORS.TEXT_PRIMARY)
+
+                        local itemSwitchBg = create("TextButton", {
+                            Name = "SwitchBackground",
+                            Parent = itemFrame,
+                            BackgroundColor3 = COLORS.TOGGLE_BACKGROUND_OFF,
+                            BorderSizePixel = 0,
+                            AnchorPoint = Vector2.new(1, 0.5),
+                            Position = UDim2.new(1, -PADDING, 0.5, 0),
+                            Size = UDim2.new(0, 30, 0, 15),
+                            AutoButtonColor = false,
+                            Text = "",
+                            ZIndex = 7
+                        })
+                        create("UICorner", { CornerRadius = UDim.new(0, 50), Parent = itemSwitchBg })
+
+                        local itemSwitchHandle = create("TextButton", {
+                            Name = "SwitchHandle",
+                            Parent = itemSwitchBg,
+                            BackgroundColor3 = COLORS.TOGGLE_OFF,
+                            BorderSizePixel = 0,
+                            AnchorPoint = Vector2.new(0.5, 0.5),
+                            Position = UDim2.new(0.25, 0, 0.5, 0),
+                            Size = UDim2.new(0, 13, 0, 13),
+                            AutoButtonColor = false,
+                            Text = "",
+                            ZIndex = 8
+                        })
+                        create("UICorner", { CornerRadius = UDim.new(0, 50), Parent = itemSwitchHandle })
+
+                        itemToggles[v] = {
+                            frame = itemFrame,
+                            label = itemLabel,
+                            switchBg = itemSwitchBg,
+                            switchHandle = itemSwitchHandle,
+                            selected = false
+                        }
+
+                        local function toggleItemSelection()
+                            itemToggles[v].selected = not itemToggles[v].selected
+                            if itemToggles[v].selected then
+                                table.insert(selectedItems, v)
+                                TweenService:Create(itemSwitchHandle, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                                    Position = UDim2.new(0.74, 0, 0.5, 0)
+                                }):Play()
+                                TweenService:Create(itemSwitchHandle, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                                    BackgroundColor3 = COLORS.TOGGLE_ON
+                                }):Play()
+                                TweenService:Create(itemSwitchBg, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                                    BackgroundColor3 = COLORS.TOGGLE_BACKGROUND_ON
+                                }):Play()
+                            else
+                                for idx, item in pairs(selectedItems) do
+                                    if item == v then
+                                        table.remove(selectedItems, idx)
+                                        break
+                                    end
+                                end
+                                TweenService:Create(itemSwitchHandle, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                                    Position = UDim2.new(0.25, 0, 0.5, 0)
+                                }):Play()
+                                TweenService:Create(itemSwitchHandle, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                                    BackgroundColor3 = COLORS.TOGGLE_OFF
+                                }):Play()
+                                TweenService:Create(itemSwitchBg, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                                    BackgroundColor3 = COLORS.TOGGLE_BACKGROUND_OFF
+                                }):Play()
+                            end
+                            updateDisplayText()
+                            options.callback(table.clone(selectedItems)) -- Pass a copy to avoid external modification
+                        end
+
+                        itemSwitchBg.MouseButton1Click:Connect(toggleItemSelection)
+                        itemSwitchHandle.MouseButton1Click:Connect(toggleItemSelection)
+
+                        maxListHeight = maxListHeight + (BUTTON_HEIGHT - 8)
+                    end
+
+                    dropdownButton.MouseButton1Click:Connect(function()
+                        Dropped = not Dropped
+                        local targetRotation = Dropped and 180 or 0
+                        local targetHeight = Dropped and maxListHeight or 0
+
+                        TweenService:Create(dropdownList, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                            Size = UDim2.new(dropdownList.Size.X.Scale, dropdownList.Size.X.Offset, 0, targetHeight)
+                        }):Play()
+                        TweenService:Create(arrowIcon, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Rotation = targetRotation }):Play()
+
+                        TweenService:Create(dropdownLabel, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                            TextColor3 = Dropped and COLORS.TEXT_PRIMARY or COLORS.TEXT_SECONDARY
+                        }):Play()
+                    end)
+                    updateDisplayText()
+                end
+
+                -- Textbox Element
+                function elements:Textbox(options)
+                    options = options or {}
+                    if not options.text or options.default == nil or not options.callback then Notify("Textbox", "Missing arguments!") return end
+
+                    local textboxFrame = create("Frame", {
+                        Name = "Textbox_" .. options.text:gsub("%s+", "_"),
+                        Parent = sectionFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(1, -PADDING * 2, 0, BUTTON_HEIGHT),
+                        Position = UDim2.new(0, PADDING, 0, 0),
+                        LayoutOrder = options.LayoutOrder
+                    })
+
+                    local textboxLabel = create("TextLabel", {
+                        Name = "Label",
+                        Parent = textboxFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(0.6, 0, 1, 0),
+                        Position = UDim2.new(0, 0, 0, 0),
+                        Font = Enum.Font.Gotham,
+                        Text = options.text,
+                        TextColor3 = COLORS.TEXT_SECONDARY,
+                        TextSize = 14,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextWrapped = true
+                    })
+                    hoverEffect(textboxLabel, COLORS.ACCENT_BLUE, COLORS.TEXT_SECONDARY)
+
+                    local inputTextBox = create("TextBox", {
+                        Name = "InputTextBox",
+                        Parent = textboxFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_TERTIARY,
+                        TextColor3 = COLORS.TEXT_PRIMARY,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(0.4, 0, 1, 0),
+                        AnchorPoint = Vector2.new(1, 0),
+                        Position = UDim2.new(1, 0, 0, 0),
+                        Font = Enum.Font.Gotham,
+                        Text = tostring(options.default),
+                        TextSize = 12,
+                        TextXAlignment = Enum.TextXAlignment.Center,
+                        ClearTextOnFocus = false,
+                        ZIndex = 2
+                    })
+                    create("UICorner", { CornerRadius = UDim.new(0, CORNER_RADIUS - 2), Parent = inputTextBox })
+
+                    inputTextBox.Focused:Connect(function()
+                        TweenService:Create(textboxLabel, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = COLORS.TEXT_PRIMARY}):Play()
+                    end)
+                    inputTextBox.FocusLost:Connect(function(enterPressed)
+                        TweenService:Create(textboxLabel, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = COLORS.TEXT_SECONDARY}):Play()
+                        if enterPressed then
+                            options.callback(inputTextBox.Text)
+                        end
+                    end)
+                end
+
+                -- Colorpicker Element
+                function elements:Colorpicker(options)
+                    options = options or {}
+                    if not options.text or not options.default or not options.callback then Notify("Colorpicker", "Missing arguments!") return end
+
+                    local initialColor = options.default
+                    local hue, sat, val = initialColor:ToHSV()
+                    local CurrentColor = initialColor
+
+                    local isPickerVisible = false
+
+                    local colorpickerFrame = create("Frame", {
+                        Name = "Colorpicker_" .. options.text:gsub("%s+", "_"),
+                        Parent = sectionFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(1, -PADDING * 2, 0, BUTTON_HEIGHT),
+                        Position = UDim2.new(0, PADDING, 0, 0),
+                        ClipsDescendants = false,
+                        LayoutOrder = options.LayoutOrder
+                    })
+
+                    local colorpickerLabel = create("TextLabel", {
+                        Name = "Label",
+                        Parent = colorpickerFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(0.6, 0, 1, 0),
+                        Position = UDim2.new(0, 0, 0, 0),
+                        Font = Enum.Font.Gotham,
+                        Text = options.text,
+                        TextColor3 = COLORS.TEXT_SECONDARY,
+                        TextSize = 14,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextWrapped = true
+                    })
+                    hoverEffect(colorpickerLabel, COLORS.ACCENT_BLUE, COLORS.TEXT_SECONDARY)
+
+                    local colorIndicator = create("Frame", {
+                        Name = "ColorIndicator",
+                        Parent = colorpickerFrame,
+                        BackgroundColor3 = initialColor,
+                        BorderSizePixel = 1,
+                        BorderColor3 = COLORS.BORDER_COLOR,
+                        Size = UDim2.new(0, 20, 0, 20),
+                        AnchorPoint = Vector2.new(1, 0.5),
+                        Position = UDim2.new(1, 0, 0.5, 0),
+                        ZIndex = 2
+                    })
+                    create("UICorner", { CornerRadius = UDim.new(0, CORNER_RADIUS / 2), Parent = colorIndicator })
+
+                    local dropdownArrow = create("ImageButton", {
+                        Name = "ArrowButton",
+                        Parent = colorIndicator,
+                        BackgroundColor3 = colorIndicator.BackgroundColor3,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        AnchorPoint = Vector2.new(1, 0.5),
+                        Position = UDim2.new(1, -PADDING, 0.5, 0),
+                        Size = UDim2.new(0, 12, 0, 12),
+                        Image = "rbxassetid://8008296380",
+                        ImageColor3 = COLORS.TEXT_PRIMARY,
+                        ZIndex = 3
+                    })
+
+                    local pickerPanel = create("Frame", {
+                        Name = "PickerPanel",
+                        Parent = colorpickerFrame,
+                        Visible = false,
+                        BackgroundColor3 = COLORS.BACKGROUND_TERTIARY,
+                        BorderSizePixel = 1,
+                        BorderColor3 = COLORS.BORDER_COLOR,
+                        Size = UDim2.new(0, 200, 0, 180),
+                        AnchorPoint = Vector2.new(1, 0),
+                        Position = UDim2.new(1, 0, 1, 2),
+                        ZIndex = 10
+                    })
+                    create("UICorner", { CornerRadius = UDim.new(0, CORNER_RADIUS), Parent = pickerPanel })
+
+                    local svPicker = create("ImageButton", {
+                        Name = "SVPicker",
+                        Parent = pickerPanel,
+                        BackgroundColor3 = COLORS.BACKGROUND_TERTIARY,
+                        BackgroundTransparency = 1,
+                        Size = UDim2.new(0, 140, 0, 140),
+                        Position = UDim2.new(0, PADDING, 0, PADDING),
+                        Image = "rbxassetid://6523286724",
+                        ZIndex = 11
+                    })
+
+                    local svHandle = create("ImageLabel", {
+                        Name = "SVHandle",
+                        Parent = svPicker,
+                        BackgroundColor3 = Color3.new(0, 0, 0),
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 1,
+                        BorderColor3 = Color3.new(1, 1, 1),
+                        Size = UDim2.new(0, 12, 0, 12),
+                        Image = "rbxassetid://3926309567",
+                        ImageRectOffset = Vector2.new(628, 420),
+                        ImageRectSize = Vector2.new(48, 48),
+                        AnchorPoint = Vector2.new(0.5, 0.5),
+                        Position = UDim2.new(0, 0, 0, 0),
+                        ZIndex = 12
+                    })
+
+                    local hueSlider = create("ImageButton", {
+                        Name = "HueSlider",
+                        Parent = pickerPanel,
+                        BackgroundColor3 = COLORS.BACKGROUND_TERTIARY,
+                        BackgroundTransparency = 1,
+                        Size = UDim2.new(0, 20, 0, 140),
+                        AnchorPoint = Vector2.new(1, 0),
+                        Position = UDim2.new(1, -PADDING, 0, PADDING),
+                        Image = "rbxassetid://156579757",
+                        ZIndex = 11
+                    })
+
+                    local hueHandle = create("Frame", {
+                        Name = "HueHandle",
+                        Parent = hueSlider,
+                        BackgroundColor3 = Color3.new(1, 0, 0),
+                        BorderSizePixel = 1,
+                        BorderColor3 = Color3.new(1, 1, 1),
+                        Size = UDim2.new(1, 0, 0, 5),
+                        AnchorPoint = Vector2.new(0.5, 0.5),
+                        Position = UDim2.new(0.5, 0, 0, 0),
+                        ZIndex = 12
+                    })
+
+                    local hexTextBox = create("TextBox", {
+                        Name = "HexTextBox",
+                        Parent = pickerPanel,
+                        BackgroundColor3 = COLORS.BACKGROUND_PRIMARY,
+                        TextColor3 = COLORS.TEXT_PRIMARY,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(1, -(PADDING * 2), 0, 24),
+                        Position = UDim2.new(0, PADDING, 0, pickerPanel.Size.Y.Offset - 24 - PADDING),
+                        Font = Enum.Font.Gotham,
+                        Text = "#" .. CurrentColor:ToHex(),
+                        TextSize = 12,
+                        TextXAlignment = Enum.TextXAlignment.Center,
+                        ClearTextOnFocus = false,
+                        ZIndex = 11
+                    })
+                    create("UICorner", { CornerRadius = UDim.new(0, CORNER_RADIUS - 2), Parent = hexTextBox })
+
+                    local function toHex(color)
+                        return string.format("#%02X%02X%02X", color.R * 255, color.G * 255, color.B * 255)
+                    end
+
+                    local function updateColor(newHue, newSat, newVal)
+                        CurrentColor = Color3.fromHSV(newHue, newSat, newVal)
+                        colorIndicator.BackgroundColor3 = CurrentColor
+                        hexTextBox.Text = toHex(CurrentColor)
+                        options.callback(CurrentColor)
+                    end
+
+                    local svHeld = false
+                    local hueHeld = false
+
+                    local function updateSV(inputPosition)
+                        local svX = math.clamp(inputPosition.X - svPicker.AbsolutePosition.X, 0, svPicker.AbsoluteSize.X)
+                        local svY = math.clamp(inputPosition.Y - svPicker.AbsolutePosition.Y, 0, svPicker.AbsoluteSize.Y)
+
+                        sat = svX / svPicker.AbsoluteSize.X
+                        val = 1 - (svY / svPicker.AbsoluteSize.Y)
+
+                        svHandle.Position = UDim2.new(sat, 0, 1 - val, 0)
+                        svHandle.BackgroundColor3 = Color3.fromHSV(hue, sat, val)
+                        svHandle.BorderColor3 = (val > 0.5 or sat < 0.5) and Color3.new(0, 0, 0) or Color3.new(1, 1, 1)
+                        updateColor(hue, sat, val)
+
+                        local colorAtHue = Color3.fromHSV(hue, 1, 1)
+                        hueHandle.BackgroundColor3 = colorAtHue
+                    end
+
+                    local function updateHue(inputPosition)
+                        local hueY = math.clamp(inputPosition.Y - hueSlider.AbsolutePosition.Y, 0, hueSlider.AbsoluteSize.Y)
+                        hue = hueY / hueSlider.AbsoluteSize.Y
+
+                        hueHandle.Position = UDim2.new(0.5, 0, hue, 0)
+                        hueHandle.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
+                        svPicker.ImageColor3 = Color3.fromHSV(hue, 1, 1)
+                        updateColor(hue, sat, val)
+                    end
+
+                    svPicker.InputBegan:Connect(function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                            svHeld = true
+                            updateSV(input.Position)
+                        end
+                    end)
+                    hueSlider.InputBegan:Connect(function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                            hueHeld = true
+                            updateHue(input.Position)
+                        end
+                    end)
+
+                    UserInputService.InputChanged:Connect(function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseMovement then
+                            if svHeld then updateSV(input.Position) end
+                            if hueHeld then updateHue(input.Position) end
+                        end
+                    end)
+
+                    UserInputService.InputEnded:Connect(function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                            svHeld = false
+                            hueHeld = false
+                        end
+                    end)
+
+                    dropdownArrow.MouseButton1Click:Connect(function()
+                        isPickerVisible = not isPickerVisible
+                        pickerPanel.Visible = isPickerVisible
+                        TweenService:Create(colorpickerLabel, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                            TextColor3 = isPickerVisible and COLORS.TEXT_PRIMARY or COLORS.TEXT_SECONDARY
+                        }):Play()
+                        TweenService:Create(dropdownArrow, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Rotation = isPickerVisible and 180 or 0 }):Play()
+                    end)
+
+                    hexTextBox.Focused:Connect(function()
+                        TweenService:Create(colorpickerLabel, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = COLORS.TEXT_PRIMARY}):Play()
+                    end)
+                    hexTextBox.FocusLost:Connect(function(enterPressed)
+                        TweenService:Create(colorpickerLabel, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = COLORS.TEXT_SECONDARY}):Play()
+                        if enterPressed then
+                            local hexCode = hexTextBox.Text:gsub("#", "")
+                            if #hexCode == 6 then
+                                pcall(function()
+                                    local r = tonumber(hexCode:sub(1, 2), 16) / 255
+                                    local g = tonumber(hexCode:sub(3, 4), 16) / 255
+                                    local b = tonumber(hexCode:sub(5, 6), 16) / 255
+                                    local newColor = Color3.new(r, g, b)
+                                    hue, sat, val = newColor:ToHSV()
+                                    updateSV(Vector2.new(svPicker.AbsolutePosition.X + sat * svPicker.AbsoluteSize.X, svPicker.AbsolutePosition.Y + (1 - val) * svPicker.AbsoluteSize.Y))
+                                    updateHue(Vector2.new(hueSlider.AbsolutePosition.X, hueSlider.AbsolutePosition.Y + hue * hueSlider.AbsoluteSize.Y))
+                                    updateColor(hue, sat, val)
+                                end)
+                            else
+                                Notify("Invalid Hex", "Please enter a 6-digit hex code (e.g., #RRGGBB).")
+                                hexTextBox.Text = toHex(CurrentColor)
+                            end
+                        end
+                    end)
+
+                    svHandle.Position = UDim2.new(sat, 0, 1 - val, 0)
+                    hueHandle.Position = UDim2.new(0.5, 0, hue, 0)
+                    svPicker.ImageColor3 = Color3.fromHSV(hue, 1, 1)
+                    hueHandle.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
+                end
+
+                -- Keybind Element
+                function elements:Keybind(options)
+                    options = options or {}
+                    if not options.text or not options.default or not options.callback then Notify("Keybind", "Missing arguments!") return end
+
+                    local blacklisted = {
+                        Return = true, Space = true, Tab = true, Unknown = true,
+                        -- Note: WASD and IO are common movement/action keys, consider allowing them as keybinds
+                        -- if the user understands potential conflicts. For simplicity, they are not blacklisted here.
+                    }
+
+                    local shortNames = {
+                        RightControl = "RCtrl", LeftControl = "LCtrl", LeftShift = "LShift",
+                        RightShift = "RShift", MouseButton1 = "M1", MouseButton2 = "M2",
+                        LeftAlt = "LAlt", RightAlt = "RAlt", Backspace = "Bckspc"
+                    }
+
+                    local currentKey = options.default.Name
+                    local isListening = false
+
+                    local keybindFrame = create("Frame", {
+                        Name = "Keybind_" .. options.text:gsub("%s+", "_"),
+                        Parent = sectionFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(1, -PADDING * 2, 0, BUTTON_HEIGHT),
+                        Position = UDim2.new(0, PADDING, 0, 0),
+                        LayoutOrder = options.LayoutOrder
+                    })
+
+                    local keybindLabel = create("TextLabel", {
+                        Name = "Label",
+                        Parent = keybindFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_SECONDARY,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(0.6, 0, 1, 0),
+                        Position = UDim2.new(0, 0, 0, 0),
+                        Font = Enum.Font.Gotham,
+                        Text = options.text,
+                        TextColor3 = COLORS.TEXT_SECONDARY,
+                        TextSize = 14,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextWrapped = true
+                    })
+                    hoverEffect(keybindLabel, COLORS.ACCENT_BLUE, COLORS.TEXT_SECONDARY)
+
+                    local keyDisplayButton = create("TextButton", {
+                        Name = "KeyDisplay",
+                        Parent = keybindFrame,
+                        BackgroundColor3 = COLORS.BACKGROUND_TERTIARY,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(0.4, 0, 1, 0),
+                        AnchorPoint = Vector2.new(1, 0),
+                        Position = UDim2.new(1, 0, 0, 0),
+                        AutoButtonColor = false,
+                        Font = Enum.Font.GothamMedium,
+                        Text = shortNames[currentKey] or currentKey,
+                        TextColor3 = COLORS.TEXT_PRIMARY,
+                        TextSize = 12,
+                        TextXAlignment = Enum.TextXAlignment.Center,
+                        ZIndex = 2
+                    })
+                    create("UICorner", { CornerRadius = UDim.new(0, CORNER_RADIUS - 2), Parent = keyDisplayButton })
+                    hoverEffect(keyDisplayButton, COLORS.ACCENT_BLUE, COLORS.TEXT_PRIMARY)
+                    clickEffect(keyDisplayButton, 0.98)
+
+                    keyDisplayButton.MouseButton1Click:Connect(function()
+                        if isListening then return end
+                        isListening = true
+                        keyDisplayButton.Text = "..."
+                        keyDisplayButton.TextColor3 = COLORS.ACCENT_BLUE
+                        Notify("Keybind", "Press a key to set new keybind.")
+
+                        local inputConn
+                        inputConn = UserInputService.InputBegan:Connect(function(inputObject, gameProcessedEvent)
+                            if not gameProcessedEvent and isListening then
+                                local newKeyName = inputObject.KeyCode.Name
+                                if inputObject.UserInputType == Enum.UserInputType.MouseButton1 then
+                                    newKeyName = "MouseButton1"
+                                elseif inputObject.UserInputType == Enum.UserInputType.MouseButton2 then
+                                    newKeyName = "MouseButton2"
+                                end
+
+                                if not blacklisted[newKeyName] then
+                                    currentKey = newKeyName
+                                else
+                                    Notify("Keybind", "Cannot bind to this key. Try another.")
+                                end
+
+                                keyDisplayButton.Text = shortNames[currentKey] or currentKey
+                                keyDisplayButton.TextColor3 = COLORS.TEXT_PRIMARY
+                                isListening = false
+                                options.callback(currentKey)
+                                inputConn:Disconnect()
+                                Notify("Keybind", "Keybind set to: " .. (shortNames[currentKey] or currentKey))
+                            end
+                        end)
+                    end)
+
+                    UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+                        if not gameProcessedEvent and not isListening then
+                            local keyPressedName = input.KeyCode.Name
+                            if input.UserInputType == Enum.UserInputType.MouseButton1 then keyPressedName = "MouseButton1" end
+                            if input.UserInputType == Enum.UserInputType.MouseButton2 then keyPressedName = "MouseButton2" end
+
+                            if keyPressedName == currentKey then
+                                options.callback(currentKey)
+                            end
+                        end
+                    end)
+                end
+
+                return elements
+            end
+
+            return sections
+        end
+
+        return tabs
+    end
+
+    return tabsections
+end
+
+return UI
