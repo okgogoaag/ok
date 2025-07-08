@@ -1,0 +1,853 @@
+--//  NEBULA UI LIBRARY  //--
+--//  completely rewritten & re-themed by ChatGPT  //--
+
+local Nebula              = {}
+Nebula.__VERSION          = "2.0-revamped"
+Nebula.__AUTHOR           = "ChatGPT"
+
+--//  ______  SETTINGS / THEME   //--
+local Theme = {
+    Body        = Color3.fromRGB(16 , 18 , 27 ),
+    Sidebar     = Color3.fromRGB(25 , 29 , 43 ),
+    Accent      = Color3.fromRGB(137,  82, 255), -- violet
+    AccentAlt   = Color3.fromRGB(  0, 255, 255), -- cyan
+    TextPrimary = Color3.fromRGB(235, 239, 245),
+    TextMuted   = Color3.fromRGB(160, 170, 180),
+    Section     = Color3.fromRGB(  3,  10, 23 ),
+    SectionLine = Color3.fromRGB( 40,  45, 60 ),
+    Hover       = Color3.fromRGB( 60,  65, 90 ),
+    SliderRail  = Color3.fromRGB( 33,  38, 60 ),
+    SliderBall  = Color3.fromRGB(  0, 255, 255),
+    Field       = Color3.fromRGB( 11,  14, 22 ),
+}
+
+----------------------------------------------------------------
+--//  ______  ROBLOX SERVICES   //--
+----------------------------------------------------------------
+local TweenService        = game:GetService("TweenService")
+local UIS                 = game:GetService("UserInputService")
+local RS                  = game:GetService("RunService")
+local Players             = game:GetService("Players")
+local StarterGui          = game:GetService("StarterGui")
+local LocalPlayer         = Players.LocalPlayer
+local Mouse               = LocalPlayer:GetMouse()
+
+----------------------------------------------------------------
+--//  ______  UTILITY FUNCTIONS   //--
+----------------------------------------------------------------
+local function tween(obj, data, time, style, dir)
+    time  = time  or .15
+    style = style or Enum.EasingStyle.Quad
+    dir   = dir   or Enum.EasingDirection.Out
+    TweenService:Create(obj, TweenInfo.new(time, style, dir), data):Play()
+end
+
+local function round(num, bracket)
+    bracket = bracket or 1
+    local a = math.floor(num/bracket + (math.sign(num) * 0.5)) * bracket
+    if a < 0 then a = a + bracket end
+    return a
+end
+
+local function notify(title, text, dur)
+    StarterGui:SetCore("SendNotification", {
+        Title    = title or "Nebula",
+        Text     = text  or "",
+        Duration = dur   or 4
+    })
+end
+
+local function makeDraggable(frame, dragParent)
+    dragParent = dragParent or frame
+    local hold = false
+    local off  = Vector2.new()
+
+    frame.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            hold = true
+            off  = Vector2.new(inp.Position.X - dragParent.AbsolutePosition.X,
+                               inp.Position.Y - dragParent.AbsolutePosition.Y)
+            inp.Changed:Connect(function()
+                if inp.UserInputState == Enum.UserInputState.End then
+                    hold = false
+                end
+            end)
+        end
+    end)
+
+    UIS.InputChanged:Connect(function(inp)
+        if hold and inp.UserInputType == Enum.UserInputType.MouseMovement then
+            dragParent.Position = UDim2.new(0, inp.Position.X - off.X, 0, inp.Position.Y - off.Y)
+        end
+    end)
+end
+
+----------------------------------------------------------------
+--//  ______  DESTROY OLD INSTANCES   //--
+----------------------------------------------------------------
+for _,v in ipairs(game:GetService("CoreGui"):GetChildren()) do
+    if v:IsA("ScreenGui") and v.Name == "NebulaUI" then
+        v:Destroy()
+    end
+end
+
+----------------------------------------------------------------
+--//  ______  LIBRARY CORE   //--
+----------------------------------------------------------------
+local CoreGui       = game:GetService("CoreGui")
+local GUI           = Instance.new("ScreenGui")
+GUI.Name            = "NebulaUI"
+GUI.Parent          = CoreGui
+GUI.ResetOnSpawn    = false
+GUI.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
+
+----------------------------------------------------------------
+--//  ______  WINDOW CONSTRUCTOR   //--
+----------------------------------------------------------------
+function Nebula:Window(opt)
+    opt       = opt or {}
+    opt.text  = opt.text  or "NEBULA"
+    opt.size  = opt.size  or UDim2.new(0, 720, 0, 540)
+    opt.pos   = opt.pos   or UDim2.new(.5, -360, .5, -270)
+    opt.accent= opt.accent or Theme.Accent
+
+    --//  MAIN BODY  //--
+    local Body          = Instance.new("Frame")
+    Body.Name           = "Body"
+    Body.AnchorPoint    = Vector2.new(.5,.5)
+    Body.Size           = opt.size
+    Body.Position       = opt.pos
+    Body.BackgroundColor3 = Theme.Body
+    Body.Parent         = GUI
+    makeDraggable(Body)
+
+    local BodyCorner = Instance.new("UICorner", Body)
+    BodyCorner.CornerRadius = UDim.new(0,6)
+
+    --//  SIDEBAR  //--
+    local Sidebar      = Instance.new("Frame")
+    Sidebar.Name       = "Sidebar"
+    Sidebar.Size       = UDim2.new(0,190,1,0)
+    Sidebar.Position   = UDim2.new(0,0,0,0)
+    Sidebar.BackgroundColor3 = Theme.Sidebar
+    Sidebar.Parent     = Body
+
+    Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0,6)
+
+    -- accent bar
+    local AccentBar          = Instance.new("Frame", Sidebar)
+    AccentBar.BackgroundColor3 = opt.accent
+    AccentBar.BorderSizePixel  = 0
+    AccentBar.Size             = UDim2.new(0,3,1,0)
+    AccentBar.Position         = UDim2.new(1,-3,0,0)
+
+    --//  TITLE  //--
+    local TitleLabel     = Instance.new("TextLabel", Sidebar)
+    TitleLabel.Text      = "  "..opt.text
+    TitleLabel.Font      = Enum.Font.GothamBold
+    TitleLabel.TextSize  = 28
+    TitleLabel.TextColor3= Theme.TextPrimary
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.Size      = UDim2.new(1,-10,0,40)
+    TitleLabel.Position  = UDim2.new(0,5,0,6)
+    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    --//  TOPBAR (visual only)  //--
+    local TopBar = Instance.new("Frame", Body)
+    TopBar.BackgroundTransparency = 1
+    TopBar.Size = UDim2.new(1,0,0,50)
+    local TopLine = Instance.new("Frame", TopBar)
+    TopLine.BackgroundColor3 = Theme.SectionLine
+    TopLine.BorderSizePixel  = 0
+    TopLine.Size             = UDim2.new(1,-190,0,2)
+    TopLine.Position         = UDim2.new(0,190,1,-2)
+
+    --//  PAGES HOLDER  //--
+    local Pages = Instance.new("Frame")
+    Pages.Name  = "Pages"
+    Pages.BackgroundTransparency = 1
+    Pages.Size  = UDim2.new(1,-200,1,-60)
+    Pages.Position = UDim2.new(0,195,0,55)
+    Pages.Parent = Body
+
+    --//  CONTAINER FOR TABS IN SIDEBAR  //--
+    local TabContainer = Instance.new("Frame", Sidebar)
+    TabContainer.BackgroundTransparency = 1
+    TabContainer.Size = UDim2.new(1,0,1,-60)
+    TabContainer.Position = UDim2.new(0,0,0,60)
+
+    local TabLayout = Instance.new("UIListLayout", TabContainer)
+    TabLayout.Padding = UDim.new(0,6)
+    TabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+    ------------------------------------------------------------
+    --  TAB SECTION OBJECT  --
+    ------------------------------------------------------------
+    local TabSection = {}
+    function TabSection:Tab(tabOpt)
+        tabOpt        = tabOpt or {}
+        tabOpt.text   = tabOpt.text or "Tab"
+        tabOpt.icon   = tabOpt.icon or "rbxassetid://3926305904" -- generic icon
+        tabOpt.accent = tabOpt.accent or opt.accent
+
+        --// TAB BUTTON  //--
+        local TabBtn        = Instance.new("TextButton")
+        TabBtn.Parent       = TabContainer
+        TabBtn.Text         = "   "..tabOpt.text
+        TabBtn.Font         = Enum.Font.GothamSemibold
+        TabBtn.TextSize     = 15
+        TabBtn.TextXAlignment = Enum.TextXAlignment.Left
+        TabBtn.BackgroundTransparency = 1
+        TabBtn.Size         = UDim2.new(1,-10,0,28)
+        TabBtn.TextColor3   = Theme.TextMuted
+        TabBtn.AutoButtonColor = false
+
+        local Icon = Instance.new("ImageLabel", TabBtn)
+        Icon.BackgroundTransparency = 1
+        Icon.Size      = UDim2.new(0,18,0,18)
+        Icon.Position  = UDim2.new(0,6,0,.5)
+        Icon.AnchorPoint = Vector2.new(0, .5)
+        Icon.Image     = tabOpt.icon
+        Icon.ImageColor3 = tabOpt.accent
+
+        local Underline = Instance.new("Frame", TabBtn)
+        Underline.Size  = UDim2.new(1,0,0,2)
+        Underline.Position = UDim2.new(0,0,1,-2)
+        Underline.BackgroundColor3 = tabOpt.accent
+        Underline.Visible = false
+        Underline.BorderSizePixel = 0
+
+        --// TAB PAGE (scrolling frame grid) //--
+        local Page        = Instance.new("ScrollingFrame")
+        Page.Parent       = Pages
+        Page.Size         = UDim2.new(1,0,1,0)
+        Page.BackgroundTransparency = 1
+        Page.ScrollBarThickness = 4
+        Page.CanvasSize   = UDim2.new(0,0,0,0)
+        Page.Visible      = false
+
+        local Grid = Instance.new("UIGridLayout", Page)
+        Grid.CellPadding = UDim2.new(0,12,0,12)
+        Grid.CellSize    = UDim2.new(0,230,0, -10) -- height auto via constraint
+        Grid.SortOrder   = Enum.SortOrder.LayoutOrder
+
+        Grid:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            Page.CanvasSize = UDim2.new(0,0,0,Grid.AbsoluteContentSize.Y)
+        end)
+
+        -- handle switching
+        TabBtn.MouseButton1Click:Connect(function()
+            for _,child in pairs(Pages:GetChildren()) do
+                if child:IsA("ScrollingFrame") then child.Visible = false end
+            end
+            Page.Visible = true
+            -- visuals
+            for _,b in pairs(TabContainer:GetChildren()) do
+                if b:IsA("TextButton") then
+                    tween(b, {TextColor3 = Theme.TextMuted})
+                    if b:FindFirstChild("Frame") then
+                        b.Frame.Visible = false
+                    end
+                end
+            end
+            tween(TabBtn, {TextColor3 = Theme.TextPrimary})
+            Underline.Visible = true
+        end)
+
+        -- select first tab by default
+        if #Pages:GetChildren() == 1 then
+            TabBtn:MouseButton1Click()
+        end
+
+        --------------------------------------------------------
+        --  SECTION OBJECT  --
+        --------------------------------------------------------
+        local SectionAPI = {}
+        function SectionAPI:Section(secOpt)
+            secOpt = secOpt or {}
+            secOpt.text = secOpt.text or "Section"
+
+            local Holder = Instance.new("Frame", Page)
+            Holder.Size  = UDim2.new(0,230,0,130)
+            Holder.BackgroundColor3 = Theme.Section
+            Holder.BorderSizePixel  = 0
+            local HolderCorner = Instance.new("UICorner", Holder)
+            HolderCorner.CornerRadius = UDim.new(0,6)
+
+            local UIList = Instance.new("UIListLayout", Holder)
+            UIList.SortOrder = Enum.SortOrder.LayoutOrder
+            UIList.Padding = UDim.new(0,4)
+
+            local SizeConstraint = Instance.new("UISizeConstraint", Holder)
+            SizeConstraint.MinSize = Vector2.new(230,40)
+
+            local Title = Instance.new("TextLabel", Holder)
+            Title.Text = "  "..secOpt.text
+            Title.Font = Enum.Font.GothamSemibold
+            Title.TextSize = 15
+            Title.TextColor3 = Theme.TextPrimary
+            Title.BackgroundTransparency = 1
+            Title.Size = UDim2.new(1,0,0,24)
+
+            local Line = Instance.new("Frame", Holder)
+            Line.BackgroundColor3 = Theme.SectionLine
+            Line.BorderSizePixel  = 0
+            Line.Size             = UDim2.new(1,-20,0,2)
+            Line.Position         = UDim2.new(0,10,0,24)
+
+            local ElemAPI = {}
+            local function grow(h)
+                SizeConstraint.MinSize = SizeConstraint.MinSize + Vector2.new(0,h)
+            end
+
+            ----------------------------------------------------------------
+            -- ELEMENTS
+            ----------------------------------------------------------------
+
+            --//  BUTTON  //--
+            function ElemAPI:Button(o)
+                assert(o and o.text and o.callback, "Button requires 'text' & 'callback'")
+                local B = Instance.new("TextButton", Holder)
+                B.Size  = UDim2.new(1,-20,0,26)
+                B.Position = UDim2.new(0,10,0,0)
+                B.BackgroundTransparency = 1
+                B.Font = Enum.Font.Gotham
+                B.Text = o.text
+                B.TextSize = 14
+                B.TextColor3 = Theme.TextMuted
+                B.AutoButtonColor=false
+
+                B.MouseEnter:Connect(function() tween(B,{TextColor3 = Theme.TextPrimary},.1) end)
+                B.MouseLeave:Connect(function() tween(B,{TextColor3 = Theme.TextMuted},.1) end)
+                B.MouseButton1Click:Connect(function()
+                    tween(B,{TextSize = 12},.08,Enum.EasingStyle.Quart,Enum.EasingDirection.In)
+                    wait(.08)
+                    tween(B,{TextSize = 14},.1,Enum.EasingStyle.Quart,Enum.EasingDirection.Out)
+                    pcall(o.callback)
+                end)
+                grow(30)
+            end
+
+            --//  LABEL (static text)  //--
+            function ElemAPI:Label(o)
+                assert(o and o.text, "Label requires 'text'")
+                local L = Instance.new("TextLabel", Holder)
+                L.Size  = UDim2.new(1,-20,0,20)
+                L.Position = UDim2.new(0,10,0,0)
+                L.BackgroundTransparency=1
+                L.Font        = Enum.Font.Gotham
+                L.Text        = o.text
+                L.TextSize    = 13
+                L.TextColor3  = Theme.TextMuted
+                L.TextWrapped = true
+                grow(24)
+            end
+
+            --//  SEPARATOR (thin line / space) //--
+            function ElemAPI:Separator(height)
+                height = tonumber(height) or 6
+                local Sep = Instance.new("Frame", Holder)
+                Sep.BackgroundColor3 = Theme.SectionLine
+                Sep.Size = UDim2.new(1,-20,0,1)
+                Sep.Position = UDim2.new(0,10,0,0)
+                Sep.BorderSizePixel = 0
+                grow(height)
+            end
+
+            --//  TOGGLE  //--
+            function ElemAPI:Toggle(o)
+                assert(o and o.text and o.callback, "Toggle requires 'text' and 'callback'")
+                o.state = o.state or false
+                local Frame = Instance.new("Frame", Holder)
+                Frame.Size  = UDim2.new(1,-20,0,26)
+                Frame.Position = UDim2.new(0,10,0,0)
+                Frame.BackgroundTransparency = 1
+
+                local Label = Instance.new("TextLabel", Frame)
+                Label.BackgroundTransparency = 1
+                Label.Size = UDim2.new(1,-36,1,0)
+                Label.Font = Enum.Font.Gotham
+                Label.Text = " "..o.text
+                Label.TextSize = 14
+                Label.TextColor3 = o.state and Theme.TextPrimary or Theme.TextMuted
+                Label.TextXAlignment = Enum.TextXAlignment.Left
+
+                local ToggleFrame = Instance.new("Frame", Frame)
+                ToggleFrame.Size = UDim2.new(0,36,0,18)
+                ToggleFrame.Position = UDim2.new(1,-36,0,.5)
+                ToggleFrame.AnchorPoint = Vector2.new(1,.5)
+                ToggleFrame.BackgroundColor3 = Theme.Field
+                ToggleFrame.BorderSizePixel  = 0
+                Instance.new("UICorner", ToggleFrame).CornerRadius = UDim.new(0,9)
+
+                local Dot = Instance.new("Frame", ToggleFrame)
+                Dot.Size  = UDim2.new(0,16,0,16)
+                Dot.Position = o.state and UDim2.new(1,-17,0,.5) or UDim2.new(0,1,0,.5)
+                Dot.AnchorPoint = Vector2.new(.5,.5)
+                Dot.BackgroundColor3 = o.state and Theme.AccentAlt or Theme.SliderRail
+                Dot.BorderSizePixel  = 0
+                Instance.new("UICorner", Dot).CornerRadius = UDim.new(0,8)
+
+                local function set(state)
+                    o.state = state
+                    tween(Label ,{TextColor3 = state and Theme.TextPrimary or Theme.TextMuted})
+                    tween(Dot   ,{BackgroundColor3 = state and Theme.AccentAlt or Theme.SliderRail})
+                    tween(Dot   ,{Position = state and UDim2.new(1,-17,0,.5) or UDim2.new(0,1,0,.5)})
+                    pcall(o.callback,state)
+                end
+                Frame.InputBegan:Connect(function(inp)
+                    if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                        set(not o.state)
+                    end
+                end)
+                grow(30)
+            end
+
+            --//  SLIDER  //--
+            function ElemAPI:Slider(o)
+                assert(o and o.text and o.min and o.max and o.callback,"Slider requires text, min, max, callback")
+                o.def   = o.def or o.min
+                o.float = o.float or 1
+
+                local Frame = Instance.new("Frame", Holder)
+                Frame.BackgroundTransparency=1
+                Frame.Size=UDim2.new(1,-20,0,32)
+                Frame.Position=UDim2.new(0,10,0,0)
+
+                local Label = Instance.new("TextLabel", Frame)
+                Label.BackgroundTransparency=1
+                Label.Size=UDim2.new(0.4,0,1,0)
+                Label.Font=Enum.Font.Gotham
+                Label.Text=" "..o.text
+                Label.TextSize=14
+                Label.TextColor3=Theme.TextMuted
+                Label.TextXAlignment=Enum.TextXAlignment.Left
+
+                local Rail = Instance.new("Frame", Frame)
+                Rail.Size=UDim2.new(0.45,0,0,3)
+                Rail.Position=UDim2.new(.5,0,.5,0)
+                Rail.BackgroundColor3 = Theme.SliderRail
+                Rail.BorderSizePixel=0
+                Rail.AnchorPoint = Vector2.new(0,.5)
+
+                local Ball = Instance.new("Frame", Rail)
+                Ball.Size=UDim2.new(0,14,0,14)
+                Ball.AnchorPoint=Vector2.new(.5,.5)
+                Ball.BackgroundColor3 = Theme.SliderBall
+                Ball.Position=UDim2.new(0,0,0.5,0)
+                Ball.BorderSizePixel=0
+                Instance.new("UICorner", Ball).CornerRadius=UDim.new(0,7)
+
+                local ValBox = Instance.new("TextBox", Frame)
+                ValBox.Size=UDim2.new(0.13,0,0,20)
+                ValBox.AnchorPoint=Vector2.new(1,.5)
+                ValBox.Position=UDim2.new(1,0,.5,0)
+                ValBox.BackgroundColor3=Theme.Field
+                ValBox.BorderSizePixel=0
+                ValBox.Font=Enum.Font.Gotham
+                ValBox.Text=tostring(o.def)
+                ValBox.TextSize=13
+                ValBox.TextColor3=Theme.TextPrimary
+                ValBox.ClearTextOnFocus=false
+
+                local value = o.def
+                local dragging=false
+                local function set(v)
+                    value = math.clamp(round(v,o.float),o.min,o.max)
+                    local pct = (value-o.min)/(o.max-o.min)
+                    Ball.Position=UDim2.new(pct,0,.5,0)
+                    ValBox.Text = tostring(value)
+                    pcall(o.callback,value)
+                end
+                set(value)
+
+                Rail.InputBegan:Connect(function(inp)
+                    if inp.UserInputType==Enum.UserInputType.MouseButton1 then
+                        dragging=true
+                    end
+                end)
+                Ball.InputBegan:Connect(function(inp)
+                    if inp.UserInputType==Enum.UserInputType.MouseButton1 then
+                        dragging=true
+                    end
+                end)
+                UIS.InputEnded:Connect(function(inp)
+                    if inp.UserInputType==Enum.UserInputType.MouseButton1 then
+                        dragging=false
+                    end
+                end)
+
+                RS.RenderStepped:Connect(function()
+                    if dragging then
+                        local pos = (UIS:GetMouseLocation().X - Rail.AbsolutePosition.X)/Rail.AbsoluteSize.X
+                        set(o.min + (o.max-o.min)*pos)
+                    end
+                end)
+
+                ValBox.FocusLost:Connect(function(enter)
+                    if enter then
+                        local n = tonumber(ValBox.Text)
+                        if n then set(n) else ValBox.Text=tostring(value) end
+                    end
+                end)
+                grow(36)
+            end
+
+            --//  DROPDOWN  //--
+            function ElemAPI:Dropdown(o)
+                assert(o and o.text and o.list and o.callback, "Dropdown needs text, list, callback")
+                o.default = o.default or o.list[1]
+
+                local Dropdown = Instance.new("Frame", Holder)
+                Dropdown.Size=UDim2.new(1,-20,0,26)
+                Dropdown.Position=UDim2.new(0,10,0,0)
+                Dropdown.BackgroundTransparency=1
+
+                local Label = Instance.new("TextLabel", Dropdown)
+                Label.Size=UDim2.new(.4,0,1,0)
+                Label.BackgroundTransparency=1
+                Label.Font=Enum.Font.Gotham
+                Label.Text=" "..o.text
+                Label.TextSize=14
+                Label.TextColor3=Theme.TextMuted
+                Label.TextXAlignment=Enum.TextXAlignment.Left
+
+                local Field = Instance.new("TextButton", Dropdown)
+                Field.Size=UDim2.new(.45,0,1,0)
+                Field.AnchorPoint=Vector2.new(1,0)
+                Field.Position=UDim2.new(1,0,0,0)
+                Field.BackgroundColor3=Theme.Field
+                Field.BorderSizePixel=0
+                Field.Font=Enum.Font.Gotham
+                Field.Text=" "..o.default
+                Field.TextSize=13
+                Field.TextColor3=Theme.TextPrimary
+                Field.AutoButtonColor=false
+
+                local Arrow = Instance.new("ImageLabel", Field)
+                Arrow.BackgroundTransparency=1
+                Arrow.Size=UDim2.new(0,12,0,12)
+                Arrow.Position=UDim2.new(1,-16,.5,0)
+                Arrow.AnchorPoint=Vector2.new(1,.5)
+                Arrow.Image="rbxassetid://3926305904"
+                Arrow.ImageRectOffset=Vector2.new(964,324)
+                Arrow.ImageRectSize=Vector2.new(36,36)
+                Arrow.ImageColor3=Theme.TextMuted
+
+                local ListHolder = Instance.new("Frame", Field)
+                ListHolder.BackgroundColor3 = Theme.Field
+                ListHolder.BorderSizePixel=0
+                ListHolder.Position=UDim2.new(0,0,1,0)
+                ListHolder.Size=UDim2.new(1,0,0,0)
+                ListHolder.ClipsDescendants=true
+                ListHolder.Visible=false
+                ListHolder.ZIndex=10
+
+                local UIList=Instance.new("UIListLayout", ListHolder)
+                UIList.SortOrder=Enum.SortOrder.LayoutOrder
+
+                local dropSize=0
+                local function set(val)
+                    Field.Text=" "..val
+                    pcall(o.callback,val)
+                end
+
+                for _,v in ipairs(o.list) do
+                    local Item = Instance.new("TextButton", ListHolder)
+                    Item.BackgroundTransparency=1
+                    Item.Size=UDim2.new(1,0,0,22)
+                    Item.Font=Enum.Font.Gotham
+                    Item.TextSize=13
+                    Item.TextColor3=Theme.TextPrimary
+                    Item.Text=v
+                    Item.AutoButtonColor=false
+                    Item.MouseButton1Click:Connect(function()
+                        set(v)
+                        Field.MouseButton1Click()
+                    end)
+                    dropSize=dropSize+22
+                end
+
+                Field.MouseButton1Click:Connect(function()
+                    local open = not ListHolder.Visible
+                    ListHolder.Visible=true
+                    Arrow.ImageRectOffset = open and Vector2.new(964,284) or Vector2.new(964,324)
+                    tween(ListHolder,{Size=open and UDim2.new(1,0,0,dropSize) or UDim2.new(1,0,0,0)},.13)
+                    wait(.13)
+                    if not open then ListHolder.Visible=false end
+                end)
+                grow(30)
+            end
+
+            --//  TEXTBOX  //--
+            function ElemAPI:Textbox(o)
+                assert(o and o.text and o.callback,"Textbox requires text and callback")
+                o.value = o.value or ""
+
+                local Frame = Instance.new("Frame", Holder)
+                Frame.Size = UDim2.new(1,-20,0,26)
+                Frame.Position = UDim2.new(0,10,0,0)
+                Frame.BackgroundTransparency=1
+
+                local Label = Instance.new("TextLabel", Frame)
+                Label.BackgroundTransparency=1
+                Label.Size=UDim2.new(.4,0,1,0)
+                Label.Font=Enum.Font.Gotham
+                Label.Text=" "..o.text
+                Label.TextSize=14
+                Label.TextColor3=Theme.TextMuted
+                Label.TextXAlignment=Enum.TextXAlignment.Left
+
+                local Box = Instance.new("TextBox", Frame)
+                Box.Size=UDim2.new(.45,0,1,0)
+                Box.AnchorPoint=Vector2.new(1,0)
+                Box.Position=UDim2.new(1,0,0,0)
+                Box.BackgroundColor3=Theme.Field
+                Box.BorderSizePixel=0
+                Box.Font=Enum.Font.Gotham
+                Box.Text=o.value
+                Box.TextSize=13
+                Box.TextColor3=Theme.TextPrimary
+                Box.ClearTextOnFocus=false
+
+                Box.FocusLost:Connect(function(enter)
+                    if enter then
+                        pcall(o.callback,Box.Text)
+                    end
+                end)
+                grow(30)
+            end
+
+            --//  COLORPICKER  (kept original behaviour, only themed) //--
+            function ElemAPI:Colorpicker(o)
+                assert(o and o.text and o.color and o.callback,"Colorpicker needs text, color, callback")
+                local hue,sat,val = Color3.toHSV(o.color)
+
+                local Frame = Instance.new("Frame", Holder)
+                Frame.Size=UDim2.new(1,-20,0,26)
+                Frame.Position=UDim2.new(0,10,0,0)
+                Frame.BackgroundTransparency=1
+
+                local Label = Instance.new("TextLabel", Frame)
+                Label.BackgroundTransparency=1
+                Label.Size=UDim2.new(.4,0,1,0)
+                Label.Font=Enum.Font.Gotham
+                Label.Text=" "..o.text
+                Label.TextSize=14
+                Label.TextColor3=Theme.TextMuted
+                Label.TextXAlignment=Enum.TextXAlignment.Left
+
+                local Button = Instance.new("TextButton", Frame)
+                Button.Size=UDim2.new(0,20,0,20)
+                Button.Position=UDim2.new(1,-22,.5,0)
+                Button.AnchorPoint=Vector2.new(0, .5)
+                Button.BackgroundColor3=o.color
+                Button.BorderSizePixel=0
+                Button.Text=""
+
+                local Picker = Instance.new("Frame", Frame)
+                Picker.Visible=false
+                Picker.Position=UDim2.new(1,10,0,0)
+                Picker.Size=UDim2.new(0,250,0,220)
+                Picker.BackgroundColor3=Theme.Field
+                Picker.BorderSizePixel=0
+                Picker.ZIndex=15
+                makeDraggable(Picker)
+
+                Instance.new("UICorner",Picker).CornerRadius=UDim.new(0,6)
+
+                local SatVal = Instance.new("ImageButton", Picker)
+                SatVal.Image="rbxassetid://6523286724"
+                SatVal.Size=UDim2.new(0,170,0,150)
+                SatVal.Position=UDim2.new(0,10,0,10)
+                SatVal.BackgroundTransparency=1
+                SatVal.AutoButtonColor=false
+                SatVal.ZIndex=16
+
+                local SatDot = Instance.new("ImageLabel", SatVal)
+                SatDot.Image="rbxassetid://3926309567"
+                SatDot.ImageRectOffset=Vector2.new(628,420)
+                SatDot.ImageRectSize=Vector2.new(48,48)
+                SatDot.Size=UDim2.new(0,14,0,14)
+                SatDot.BackgroundTransparency=1
+                SatDot.ZIndex=16
+
+                local HuePick = Instance.new("ImageButton", Picker)
+                HuePick.Image="rbxassetid://156579757"
+                HuePick.Size=UDim2.new(0,20,0,150)
+                HuePick.Position=UDim2.new(0,190,0,10)
+                HuePick.BackgroundTransparency=1
+                HuePick.AutoButtonColor=false
+                HuePick.ZIndex=16
+
+                local HueDot = Instance.new("Frame", HuePick)
+                HueDot.Size=UDim2.new(1,0,0,3)
+                HueDot.BackgroundColor3=o.color
+                HueDot.BorderSizePixel=0
+                HueDot.ZIndex=16
+
+                local Hex = Instance.new("TextLabel", Picker)
+                Hex.Text="#FFFFFF"
+                Hex.Font=Enum.Font.GothamBold
+                Hex.TextSize=14
+                Hex.TextColor3=Theme.TextPrimary
+                Hex.BackgroundTransparency=1
+                Hex.Position=UDim2.new(0,10,0,175)
+                Hex.ZIndex=16
+
+                local CopyBtn = Instance.new("TextButton", Picker)
+                CopyBtn.Text="Copy"
+                CopyBtn.Font=Enum.Font.GothamSemibold
+                CopyBtn.TextSize=14
+                CopyBtn.TextColor3=Theme.TextPrimary
+                CopyBtn.BackgroundColor3=Theme.Sidebar
+                CopyBtn.BorderSizePixel=0
+                CopyBtn.Size=UDim2.new(0,60,0,24)
+                CopyBtn.Position=UDim2.new(1,-70,1,-34)
+                CopyBtn.AnchorPoint=Vector2.new(0,0)
+                CopyBtn.ZIndex=16
+
+                local function update(c)
+                    Button.BackgroundColor3=c
+                    HueDot.BackgroundColor3=c
+                    Hex.Text = ("#%02X%02X%02X"):format(c.R*255,c.G*255,c.B*255)
+                    pcall(o.callback,c)
+                end
+                update(o.color)
+
+                local draggingSV,draggingH=false,false
+                local function setSV(x,y)
+                    x=math.clamp(x,0,SatVal.AbsoluteSize.X)
+                    y=math.clamp(y,0,SatVal.AbsoluteSize.Y)
+                    SatDot.Position=UDim2.new(0,x-7,0,y-7)
+                    sat = x/SatVal.AbsoluteSize.X
+                    val = 1-y/SatVal.AbsoluteSize.Y
+                    update(Color3.fromHSV(hue,sat,val))
+                end
+                local function setH(y)
+                    y=math.clamp(y,0,HuePick.AbsoluteSize.Y)
+                    HueDot.Position=UDim2.new(0,0,0,y-1)
+                    hue = y/HuePick.AbsoluteSize.Y
+                    update(Color3.fromHSV(hue,sat,val))
+                end
+
+                SatVal.MouseButton1Down:Connect(function()
+                    draggingSV=true
+                    setSV(Mouse.X - SatVal.AbsolutePosition.X, Mouse.Y - SatVal.AbsolutePosition.Y)
+                end)
+                HuePick.MouseButton1Down:Connect(function()
+                    draggingH=true
+                    setH(Mouse.Y - HuePick.AbsolutePosition.Y)
+                end)
+                UIS.InputEnded:Connect(function(i)
+                    if i.UserInputType==Enum.UserInputType.MouseButton1 then
+                        draggingSV=false; draggingH=false
+                    end
+                end)
+                RS.RenderStepped:Connect(function()
+                    if draggingSV then
+                        setSV(Mouse.X - SatVal.AbsolutePosition.X, Mouse.Y - SatVal.AbsolutePosition.Y)
+                    end
+                    if draggingH then
+                        setH(Mouse.Y - HuePick.AbsolutePosition.Y)
+                    end
+                end)
+
+                Button.MouseButton1Click:Connect(function()
+                    Picker.Visible=not Picker.Visible
+                    tween(Label,{TextColor3=Picker.Visible and Theme.TextPrimary or Theme.TextMuted})
+                end)
+
+                CopyBtn.MouseButton1Click:Connect(function()
+                    if setclipboard then
+                        setclipboard(Hex.Text)
+                        notify("Nebula","Copied "..Hex.Text)
+                    else
+                        print(Hex.Text)
+                        notify("Nebula","Clipboard unsupported : printed HEX in console!")
+                    end
+                end)
+                grow(30)
+            end
+
+            --//  KEYBIND  //--
+            function ElemAPI:Keybind(o)
+                assert(o and o.text and o.default and o.callback,"Keybind needs text, default, callback")
+                local listening=false
+                local Key = o.default.Name
+
+                local Frame = Instance.new("Frame", Holder)
+                Frame.Size=UDim2.new(1,-20,0,26)
+                Frame.Position=UDim2.new(0,10,0,0)
+                Frame.BackgroundTransparency=1
+
+                local Btn = Instance.new("TextButton", Frame)
+                Btn.Size=UDim2.new(1,0,1,0)
+                Btn.BackgroundTransparency=1
+                Btn.Text=" "..o.text
+                Btn.Font=Enum.Font.Gotham
+                Btn.TextSize=14
+                Btn.TextColor3=Theme.TextMuted
+                Btn.TextXAlignment=Enum.TextXAlignment.Left
+                Btn.AutoButtonColor=false
+
+                local Label = Instance.new("TextLabel", Btn)
+                Label.AnchorPoint=Vector2.new(1,.5)
+                Label.Position=UDim2.new(1,-4,.5,0)
+                Label.Size=UDim2.new(0,60,0,24)
+                Label.BackgroundTransparency=1
+                Label.Font=Enum.Font.GothamSemibold
+                Label.TextSize=14
+                Label.TextColor3=Theme.TextMuted
+                Label.Text=Key
+
+                Btn.MouseButton1Click:Connect(function()
+                    listening=true
+                    Label.Text="..."
+                    tween(Btn,{TextColor3=Theme.TextPrimary})
+                    tween(Label,{TextColor3=Theme.TextPrimary})
+                end)
+
+                UIS.InputBegan:Connect(function(input,gpe)
+                    if gpe then return end
+                    if listening then
+                        if input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode ~= Enum.KeyCode.Return then
+                            Key=input.KeyCode.Name
+                            Label.Text=Key
+                            tween(Btn,{TextColor3=Theme.TextMuted})
+                            tween(Label,{TextColor3=Theme.TextMuted})
+                            listening=false
+                        end
+                    else
+                        if input.KeyCode.Name==Key then
+                            pcall(o.callback,Key)
+                        end
+                    end
+                end)
+                grow(30)
+            end
+
+            return ElemAPI
+        end
+        return SectionAPI
+    end
+    return TabSection
+end
+
+----------------------------------------------------------------
+--//  ______  GLOBAL TOGGLE BINDER   //--
+----------------------------------------------------------------
+local toggleKey = Enum.KeyCode.RightShift
+function Nebula:BindToToggle(kc)
+    toggleKey = kc
+end
+UIS.InputBegan:Connect(function(i,gpe)
+    if not gpe and i.KeyCode == toggleKey then
+        GUI.Enabled = not GUI.Enabled
+    end
+end)
+
+----------------------------------------------------------------
+--//  ______  RETURN LIBRARY   //--
+----------------------------------------------------------------
+return Nebula
