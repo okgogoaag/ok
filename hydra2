@@ -3882,7 +3882,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal)
 		return Args;
 	end;
 
-	function Args:AddSlider(Config: Slider)
+		function Args:AddSlider(Config: Slider)
 		Config = Compkiller.__CONFIG(Config , {
 			Name = 'Slider',
 			Default = 50,
@@ -3987,7 +3987,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal)
 		SliderInput.BorderColor3 = Color3.fromRGB(0, 0, 0)
 		SliderInput.BorderSizePixel = 0
 		SliderInput.Position = UDim2.new(0, 0, 0.5, 0)
-		SliderInput.Size = UDim2.new((Config.Default - Config.Min) / (Config.Max - Config.Min), 0, 1, 0)
+		SliderInput.Size = UDim2.new(0, 0, 1, 0) -- Initial size set by UpdateSliderValue
 		SliderInput.ZIndex = Zindex + 4
 
 		table.insert(Compkiller.Elements.Highlight,{
@@ -4029,7 +4029,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal)
 		ValueText.Size = UDim2.new(1, -20, 0, 25)
 		ValueText.ZIndex = Zindex + 4
 		ValueText.Font = Enum.Font.GothamMedium
-		ValueText.Text = tostring(Config.Default)..tostring(Config.Type)
+		ValueText.Text = "" -- Set by UpdateSliderValue
 		ValueText.TextColor3 = Compkiller.Colors.SwitchColor
 		ValueText.TextSize = 12.000
 		ValueText.TextTransparency = 0.750
@@ -4039,128 +4039,148 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal)
 			Element = ValueText,
 			Property = 'TextColor3'
 		});
+		
+		-- NEW: Create the TextBox for editing the value
+		local ValueInput = Instance.new("TextBox")
+		ValueInput.Name = "ValueInput"
+		ValueInput.Parent = Slider -- Parented to the main slider frame
+		ValueInput.Position = ValueText.Position -- Same position and size as the label
+		ValueInput.Size = ValueText.Size
+		ValueInput.AnchorPoint = ValueText.AnchorPoint
+		ValueInput.ZIndex = Zindex + 5 -- Higher ZIndex to appear on top
+		ValueInput.Font = ValueText.Font
+		ValueInput.TextColor3 = ValueText.TextColor3
+		ValueInput.TextSize = ValueText.TextSize
+		ValueInput.TextXAlignment = ValueText.TextXAlignment
+		ValueInput.BackgroundTransparency = 1 -- Make it look like the label initially
+		ValueInput.PlaceholderText = tostring(Config.Default) -- Show original value as placeholder
+		ValueInput.ClearTextOnFocus = false
+		ValueInput.Visible = false -- Hidden by default
+
+		table.insert(Compkiller.Elements.SwitchColor, {
+			Element = ValueInput,
+			Property = "TextColor3"
+		})
+
+		-- NEW: Centralized function to update the slider's value and visuals
+		local function UpdateSliderValue(newValue, source)
+			local value = tonumber(newValue)
+			if value == nil then value = Config.Default end -- Revert to last valid value if input is invalid
+
+			local roundedValue = Compkiller:_Rounding(value, Config.Round)
+			local clampedValue = math.clamp(roundedValue, Config.Min, Config.Max)
+
+			Config.Default = clampedValue
+
+			local percentage = (clampedValue - Config.Min) / (Config.Max - Config.Min)
+			if not (percentage >= 0 and percentage <= 1) then percentage = 0 end -- Handle NaN/DivByZero
+
+			Compkiller:_Animation(SliderInput, TweenInfo.new(0.1), {
+				Size = UDim2.new(percentage, 0, 1, 0)
+			})
+			ValueText.Text = tostring(clampedValue) .. tostring(Config.Type)
+
+			if source ~= "API" then -- Avoids callback loops when using :SetValue()
+				Config.Callback(clampedValue)
+			end
+		end
+
+		-- Initialize the slider with the correct value
+		UpdateSliderValue(Config.Default, "Init")
+
+		-- NEW: Logic to switch between display (TextLabel) and edit (TextBox) modes
+		Compkiller:_Input(ValueText, function() -- Make the TextLabel area clickable
+			if ValueInput.Visible then return end -- Already in edit mode
+			ValueText.Visible = false
+			ValueInput.Visible = true
+			ValueInput.Text = tostring(Config.Default)
+			ValueInput:CaptureFocus()
+		end)
+		
+		ValueInput.FocusLost:Connect(function(enterPressed)
+			if not ValueInput.Visible then return end -- Avoid firing when hidden
+			UpdateSliderValue(ValueInput.Text, "Input")
+			ValueInput.Visible = false
+			ValueText.Visible = true
+		end)
 
 		Compkiller:_Hover(SliderBar,function()
-			if Signal:GetValue() then
+			if Signal:GetValue() and ValueText.Visible then
 				Compkiller:_Animation(ValueText,TweenInfo.new(0.2),{
 					TextTransparency = 0.2
 				})
 			end;
 		end,function()
-			if Signal:GetValue() then
+			if Signal:GetValue() and ValueText.Visible then
 				Compkiller:_Animation(ValueText,TweenInfo.new(0.2),{
 					TextTransparency = 0.750
 				})
 			end;
-		end)	
+		end)
 
 		local IsHold = false;
-
-		local Update = function(Input)
+		
+		-- MODIFIED: Drag update logic now calls the central function
+		local UpdateFromDrag = function(Input)
 			local SizeScale = math.clamp((((Input.Position.X) - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X), 0, 1);
-
 			local Main = ((Config.Max - Config.Min) * SizeScale) + Config.Min;
-
-			local Value = Compkiller:_Rounding(Main,Config.Round);
-
-			local PositionX = UDim2.fromScale(SizeScale, 1);
-
-			local Size = (Value - Config.Min) / (Config.Max - Config.Min);
-
-			TweenService:Create(SliderInput , TweenInfo.new(0.2),{
-				Size = UDim2.new(Size, 0, 1, 0)
-			}):Play();
-
-			Config.Default = Value;
-
-			ValueText.Text = tostring(Config.Default)..tostring(Config.Type)
-
-			Config.Callback(Value)
+			UpdateSliderValue(Main, "Drag")
 		end;
 
 		do
 			SliderBar.InputBegan:Connect(function(Input)
 				if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+					-- NEW: Prevent drag if clicking on the text area
+					if Compkiller:_IsMouseOverFrame(ValueText) then return end
 					IsHold = true
-					Update(Input)
+					UpdateFromDrag(Input)
 				end
 			end)
 
 			SliderBar.InputEnded:Connect(function(Input)
 				if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
-					if UserInputService.TouchEnabled then
-						if not Compkiller:_IsMouseOverFrame(SliderBar) then
-							IsHold = false
-						end;
-					else
-						IsHold = false
-					end;
+					IsHold = false
 				end
 			end)
 
 			UserInputService.InputChanged:Connect(function(Input)
-				if IsHold then
-					if (Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch)  then
-						if UserInputService.TouchEnabled then
-							if not Compkiller:_IsMouseOverFrame(SliderBar) then
-								IsHold = false
-							else
-								Update(Input)
-							end;
-						else
-							Update(Input)
-						end;
-					end;
+				if IsHold and (Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch) then
+					UpdateFromDrag(Input)
 				end;
 			end);
 		end;
 
 		local Args = {};
-
 		Args.Flag = Config.Flag;
 
+		-- MODIFIED: SetValue now uses the central update function
 		function Args:SetValue(Value)
-			Config.Default = Value;
-
-			ValueText.Text = tostring(Config.Default)..tostring(Config.Type)
-
-			Compkiller:_Animation(SliderInput, TweenInfo.new(0.35),{
-				Size = UDim2.new((Config.Default - Config.Min) / (Config.Max - Config.Min), 0, 1, 0)
-			});
-
-			Config.Callback(Value);
+			UpdateSliderValue(Value, "API") -- Use "API" source to prevent callback loop
+			Config.Callback(Config.Default) -- Manually trigger callback to match original behavior
 		end;
 
 		Args.Signal = Signal:Connect(function(bool)
 			if bool then
-				Compkiller:_Animation(SliderInput, TweenInfo.new(0.35),{
-					Size = UDim2.new((Config.Default - Config.Min) / (Config.Max - Config.Min), 0, 1, 0)
-				});
+				UpdateSliderValue(Config.Default, "Init") -- Refresh visuals on show
 
 				Compkiller:_Animation(ValueText,Tween,{
 					TextTransparency = 0.750
 				})
-
 				Compkiller:_Animation(Frame,Tween,{
 					BackgroundTransparency = 0
 				})
-
 				Compkiller:_Animation(SliderInput,Tween,{
 					BackgroundTransparency = 0
 				})
-
 				Compkiller:_Animation(UIStroke,Tween,{
 					Transparency = 0
 				})
-
 				Compkiller:_Animation(SliderBar,Tween,{
 					BackgroundTransparency = 0
 				})
-
 				Compkiller:_Animation(BlockLine,Tween,{
 					BackgroundTransparency = 0.5
 				})
-
 				Compkiller:_Animation(BlockText,Tween,{
 					TextTransparency = 0.1
 				})
@@ -4172,27 +4192,21 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal)
 				Compkiller:_Animation(ValueText,Tween,{
 					TextTransparency = 1
 				})
-
 				Compkiller:_Animation(Frame,Tween,{
 					BackgroundTransparency = 1
 				})
-
 				Compkiller:_Animation(SliderInput,Tween,{
 					BackgroundTransparency = 1
 				})
-
 				Compkiller:_Animation(UIStroke,Tween,{
 					Transparency = 1
 				})
-
 				Compkiller:_Animation(SliderBar,Tween,{
 					BackgroundTransparency = 1
 				})
-
 				Compkiller:_Animation(BlockLine,Tween,{
 					BackgroundTransparency = 1
 				})
-
 				Compkiller:_Animation(BlockText,Tween,{
 					TextTransparency = 1
 				})
@@ -4208,7 +4222,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal)
 		end;
 
 		return Args;
-	end;
+	end
 
 	function Args:AddParagraph(Config: Paragraph) -- request by Neptune
 		Config = Compkiller.__CONFIG(Config, {
