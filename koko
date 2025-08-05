@@ -1,0 +1,635 @@
+--discord.gg/boronide, code generated using luamin.js™
+
+
+
+--------------------------------------------------------------------
+--  ███████╗██╗     ██╗   ██╗███╗   ██╗██╗   ██╗
+--  ██╔════╝██║     ██║   ██║████╗  ██║╚██╗ ██╔╝
+--  █████╗  ██║     ██║   ██║██╔██╗ ██║ ╚████╔╝ 
+--  ██╔══╝  ██║     ██║   ██║██║╚██╗██║  ╚██╔╝  
+--  ███████╗███████╗╚██████╔╝██║ ╚████║   ██║   
+--  FLUENT   –  A lightweight modern Roblox GUI library
+--------------------------------------------------------------------
+--  Place this entire script in a ModuleScript (e.g. ReplicatedStorage)
+--------------------------------------------------------------------
+local fluent = {}
+local TweenService = game:GetService("TweenService")
+local UserInput    = game:GetService("UserInputService")
+local CoreGui      = game:GetService("CoreGui")
+
+--------------------------------------------------------------------
+--  ⬤  Quick settings
+--------------------------------------------------------------------
+local SETTINGS = {
+	Font          = Enum.Font.Gotham,
+	WindowSize    = Vector2.new(580, 360),
+	Theme = {
+		Back      = Color3.fromRGB(27, 27, 29),
+		Back2     = Color3.fromRGB(38, 38, 40),
+		Accent    = Color3.fromRGB(0, 132, 255),
+		AccentDim = Color3.fromRGB(10, 90, 180),
+		Text      = Color3.fromRGB(235, 235, 245),
+		PlaceHold = Color3.fromRGB(142, 142, 147)
+	}
+}
+local WIN_PADDING = 10
+
+--------------------------------------------------------------------
+--  ⬤  Internal helpers
+--------------------------------------------------------------------
+local function new(class, props, children)
+	local o = Instance.new(class)
+	for k, v in pairs(props or {}) do
+		o[k] = v
+	end
+	if children then
+		for _, c in ipairs(children) do
+			c.Parent = o
+		end
+	end
+	return o
+end
+
+local function round(i, r)
+	new("UICorner", {
+		CornerRadius = UDim.new(0, r or 6),
+		Parent = i
+	})
+end
+
+local function stroke(i, c, thick, trans)
+	new("UIStroke", {
+		Color = c,
+		Transparency = trans or 0,
+		Thickness = thick or 1,
+		Parent = i
+	})
+end
+
+local function tween(o, goal, t, e, d)
+	TweenService:Create(o, TweenInfo.new(t or .25, e or Enum.EasingStyle.Quad, d or Enum.EasingDirection.Out), goal):Play()
+end
+
+local function ripple(btn, col)
+	btn.ClipsDescendants = true
+	btn.MouseButton1Down:Connect(function(x, y)
+		local circ = new("Frame", {
+			BackgroundColor3 = col or SETTINGS.Theme.Text,
+			BackgroundTransparency = .8,
+			Size = UDim2.fromOffset(0, 0),
+			Position = UDim2.fromOffset(x - btn.AbsolutePosition.X, y - btn.AbsolutePosition.Y),
+			AnchorPoint = Vector2.new(.5, .5),
+			Parent = btn
+		})
+		round(circ, 999)
+		local max = math.max(btn.AbsoluteSize.X, btn.AbsoluteSize.Y) * 1.5
+		tween(circ, {
+			Size = UDim2.fromOffset(max, max),
+			BackgroundTransparency = 1
+		}, .4)
+		game.Debris:AddItem(circ, .45)
+	end)
+end
+
+-- try to convert "alert-octagon" to getcustomasset("lucide/alert-octagon.png")
+local function getIcon(name)
+	local success, asset = pcall(function()
+		return getcustomasset("lucide/" .. name .. ".png")
+	end)
+	return success and asset or ""
+end
+
+--------------------------------------------------------------------
+--  ⬤  Control creators
+--------------------------------------------------------------------
+local Controls = {}     -- forward declaration (metatable later)
+
+--------------------------------------------------------------------
+--  ⬤  TAB object
+--------------------------------------------------------------------
+local Tab = {}
+Tab.__index = Tab
+
+function Tab:AddButton(text, icon, callback)
+	return Controls.button(self.Container, text, icon, callback)
+end
+function Tab:AddToggle(text, icon, default, callback)
+	return Controls.toggle(self.Container, text, icon, default, callback)
+end
+function Tab:AddSlider(text, icon, min, max, default, callback)
+	return Controls.slider(self.Container, text, icon, min, max, default, callback)
+end
+function Tab:AddInput(text, icon, placeholder, callback)
+	return Controls.input(self.Container, text, icon, placeholder, callback)
+end
+function Tab:AddKeybind(text, icon, defaultKey, callback)
+	return Controls.keybind(self.Container, text, icon, defaultKey, callback)
+end
+function Tab:Separator(label)
+	Controls.separator(self.Container, label)
+end
+
+--------------------------------------------------------------------
+--  ⬤  WINDOW object
+--------------------------------------------------------------------
+local Window = {}
+Window.__index = Window
+
+function Window:AddTab(info)          -- info = {Title="", Icon="alert"}
+	local tabBtn = new("TextButton", {
+		BackgroundColor3 = SETTINGS.Theme.Back2,
+		Size = UDim2.new(1, -WIN_PADDING * 2, 0, 30),
+		Text = "   " .. info.Title,
+		Font = SETTINGS.Font,
+		TextSize = 14,
+		TextColor3 = SETTINGS.Theme.Text,
+		AutoButtonColor = false,
+		Parent = self.Sidebar
+	})
+	round(tabBtn, 6);
+	ripple(tabBtn)
+	if info.Icon then
+		local ic = new("ImageLabel", {
+			Size = UDim2.fromOffset(18, 18),
+			Position = UDim2.fromOffset(6, 6),
+			BackgroundTransparency = 1,
+			Image = getIcon(info.Icon),
+			Parent = tabBtn
+		})
+	end
+	local page = new("ScrollingFrame", {
+		Visible = false,
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 1, 0),
+		CanvasSize = UDim2.fromScale(0, 0),
+		ScrollBarThickness = 4,
+		Parent = self.PageHolder
+	})
+	new("UIListLayout", {
+		Padding = UDim.new(0, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = page
+	})
+	local t = setmetatable({
+		Button = tabBtn,
+		Container = page
+	}, Tab)
+
+    -- switching logic
+	tabBtn.MouseButton1Click:Connect(function()
+		for _, tb in pairs(self._tabs) do
+			tb.Container.Visible = false
+			tween(tb.Button, {
+				BackgroundColor3 = SETTINGS.Theme.Back2
+			}, .15)
+		end
+		page.Visible = true
+		tween(tabBtn, {
+			BackgroundColor3 = SETTINGS.Theme.AccentDim
+		}, .15)
+	end)
+	if #self._tabs == 0 then
+		tabBtn:Activate()
+	end
+	table.insert(self._tabs, t)
+	return t
+end
+
+--------------------------------------------------------------------
+--  ⬤  Create a new fluent window
+--------------------------------------------------------------------
+function fluent:CreateWindow(args)
+	local title       = args.Title or "Fluent"
+	local keyToMin    = args.MinimizeKey or Enum.KeyCode.RightShift
+	local size        = args.Size or UDim2.fromOffset(SETTINGS.WindowSize.X, SETTINGS.WindowSize.Y)
+
+    -- clean duplicates
+	if CoreGui:FindFirstChild(title) then
+		CoreGui[title]:Destroy()
+	end
+	local gui = new("ScreenGui", {
+		Name = title,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		Parent = CoreGui
+	})
+    ----------------------------------------------------------------
+	local shadow = new("ImageLabel", {
+		Image = "rbxassetid://1316045217",
+		ScaleType = Enum.ScaleType.Slice,
+		SliceCenter = Rect.new(10, 10, 118, 118),
+		ImageTransparency = .6,
+		BackgroundTransparency = 1,
+		Size = size + UDim2.fromOffset(8, 8),
+		Position = UDim2.fromScale(.5, .5),
+		AnchorPoint = Vector2.new(.5, .5),
+		Parent = gui
+	})
+    ----------------------------------------------------------------
+	local win = new("Frame", {
+		BackgroundColor3 = SETTINGS.Theme.Back,
+		Size = size,
+		Position = UDim2.fromScale(.5, .5),
+		AnchorPoint = Vector2.new(.5, .5),
+		Parent = gui
+	})
+	round(win, 8);
+	stroke(win, SETTINGS.Theme.Back2, .8, .5)
+    ---------------------------------------------------------------- TOP
+	local top = new("Frame", {
+		Size = UDim2.new(1, 0, 0, 34),
+		BackgroundColor3 = SETTINGS.Theme.Back2,
+		Parent = win
+	})
+	round(top, 8)
+	new("TextLabel", {
+		Text = "   " .. title,
+		Font = SETTINGS.Font,
+		TextSize = 14,
+		TextColor3 = SETTINGS.Theme.Text,
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Parent = top
+	})
+
+    -- Close ✖
+	local xBtn = new("TextButton", {
+		Text = "×",
+		Font = SETTINGS.Font,
+		TextSize = 18,
+		TextColor3 = SETTINGS.Theme.Text,
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Size = UDim2.fromOffset(32, 32),
+		Position = UDim2.new(1, -32, 0, 0),
+		Parent = top
+	})
+	ripple(xBtn);
+	xBtn.MouseButton1Click:Connect(function()
+		gui:Destroy()
+	end)
+
+    -- Minimize ↧ / restore ↥
+	local minBtn = new("TextButton", {
+		Text = "▁",
+		Font = SETTINGS.Font,
+		TextSize = 18,
+		TextColor3 = SETTINGS.Theme.Text,
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Size = UDim2.fromOffset(32, 32),
+		Position = UDim2.new(1, -64, 0, 0),
+		Parent = top
+	})
+	ripple(minBtn)
+	local minimized = false
+	local function doMin()
+		minimized = not minimized
+		local tgSize = minimized and UDim2.new(1, 0, 0, 0) or UDim2.new(1, 0, 1, 0)
+		tween(win, {
+			Size = minimized and UDim2.new(0, size.X.Offset, 0, 34) or size
+		}, .25)
+		tween(shadow, {
+			Size = minimized and UDim2.new(0, size.X.Offset + 8, 0, 42) or size + UDim2.fromOffset(8, 8)
+		}, .25)
+		for _, obj in ipairs(win:GetChildren()) do
+			if obj ~= top then
+				obj.Visible = not minimized
+			end
+		end
+		minBtn.Text = minimized and "▔" or "▁"
+	end
+	minBtn.MouseButton1Click:Connect(doMin)
+
+    -- Toggle with key (hide)
+	local opened = true
+	local function toggle()
+		opened = not opened
+		tween(win, {
+			Position = UDim2.new(.5, 0, opened and .5 or -1, 0)
+		}, .25)
+		tween(shadow, {
+			Position = win.Position
+		}, .25)
+	end
+	UserInput.InputBegan:Connect(function(i, gpe)
+		if not gpe and i.KeyCode == keyToMin then
+			toggle()
+		end
+	end)
+    ---------------------------------------------------------------- SIDE + PAGES
+	local sidebar = new("Frame", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(WIN_PADDING, 34 + WIN_PADDING),
+		Size = UDim2.new(0, 150, -34 - WIN_PADDING * 2, 0),
+		Parent = win
+	})
+	new("UIListLayout", {
+		Padding = UDim.new(0, 6),
+		Parent = sidebar
+	})
+	local pages = new("Frame", {
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 150 + WIN_PADDING * 2, 0, 34 + WIN_PADDING),
+		Size = UDim2.new(1, -150 - WIN_PADDING * 3, 1, -34 - WIN_PADDING * 2),
+		Parent = win
+	})
+    ---------------------------------------------------------------- window obj
+	local object = setmetatable({
+		Gui = gui,
+		Window = win,
+		Sidebar = sidebar,
+		PageHolder = pages,
+		_tabs = {}
+	}, Window)
+
+    ---------------------------------------------------------------- dragging
+	local drag, dx, dy
+	top.InputBegan:Connect(function(inp)
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+			drag = true;
+			dx = inp.Position.X - win.Position.X.Offset;
+			dy = inp.Position.Y - win.Position.Y.Offset
+		end
+	end)
+	top.InputEnded:Connect(function(inp)
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+			drag = false
+		end
+	end)
+	UserInput.InputChanged:Connect(function(inp)
+		if drag and inp.UserInputType == Enum.UserInputType.MouseMovement then
+			win.Position = UDim2.new(0, inp.Position.X - dx, 0, inp.Position.Y - dy)
+			shadow.Position = win.Position
+		end
+	end)
+	return object
+end
+
+--------------------------------------------------------------------
+--  ⬤  Controls implementation
+--------------------------------------------------------------------
+local function addControl(container, height)
+	local frame = new("Frame", {
+		BackgroundColor3 = SETTINGS.Theme.Back2,
+		Size = UDim2.new(1, 0, 0, height),
+		Parent = container
+	});
+	round(frame, 6);
+	stroke(frame, Color3.new(0, 0, 0), 1, .9)
+	return frame
+end
+
+function Controls.button(container, text, icon, callback)
+	local btn = addControl(container, 30)
+	ripple(btn, SETTINGS.Theme.Accent)
+	local lbl = new("TextLabel", {
+		Text = "   " .. text,
+		Font = SETTINGS.Font,
+		TextSize = 14,
+		TextColor3 = SETTINGS.Theme.Text,
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Parent = btn
+	})
+	if icon then
+		new("ImageLabel", {
+			BackgroundTransparency = 1,
+			Size = UDim2.fromOffset(18, 18),
+			Position = UDim2.fromOffset(6, 6),
+			Image = getIcon(icon),
+			Parent = btn
+		})
+	end
+	btn.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then
+			tween(btn, {
+				BackgroundColor3 = SETTINGS.Theme.AccentDim
+			}, .1)
+		end
+	end)
+	btn.InputEnded:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then
+			tween(btn, {
+				BackgroundColor3 = SETTINGS.Theme.Back2
+			}, .1)
+			callback()
+		end
+	end)
+	return btn
+end
+
+function Controls.toggle(container, text, icon, default, callback)
+	local btn = addControl(container, 30)
+	ripple(btn)
+	new("TextLabel", {
+		Text = "   " .. text,
+		Font = SETTINGS.Font,
+		TextSize = 14,
+		TextColor3 = SETTINGS.Theme.Text,
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Parent = btn
+	})
+	local knob = new("Frame", {
+		BackgroundColor3 = SETTINGS.Theme.Back,
+		Size = UDim2.fromOffset(22, 22),
+		Position = UDim2.new(1, -28, 0.5, -11),
+		AnchorPoint = Vector2.new(.5, .5),
+		Parent = btn
+	})
+	round(knob, 4);
+	stroke(knob, Color3.new(), 1, .8)
+	local state = default and true or false
+	local function render()
+		knob.BackgroundColor3 = state and SETTINGS.Theme.Accent or SETTINGS.Theme.Back
+	end
+	render()
+	btn.MouseButton1Click:Connect(function()
+		state = not state
+		render()
+		callback(state)
+	end)
+	if icon then
+		new("ImageLabel", {
+			BackgroundTransparency = 1,
+			Size = UDim2.fromOffset(18, 18),
+			Position = UDim2.fromOffset(6, 6),
+			Image = getIcon(icon),
+			Parent = btn
+		})
+	end
+	return {
+		Set = function(_, v)
+			state = v;
+			render()
+		end,
+		Get = function()
+			return state
+		end
+	}
+end
+
+function Controls.slider(container, text, icon, min, max, default, callback)
+	default = default or min
+	local frm = addControl(container, 46)
+	new("TextLabel", {
+		Text = "   " .. text,
+		Font = SETTINGS.Font,
+		TextSize = 14,
+		TextColor3 = SETTINGS.Theme.Text,
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 0, 22),
+		Parent = frm
+	})
+	local bar = new("Frame", {
+		BackgroundColor3 = SETTINGS.Theme.Back,
+		Size = UDim2.new(1, -20, 0, 6),
+		Position = UDim2.new(0, 10, 0, 28),
+		Parent = frm
+	});
+	round(bar, 3)
+	local fill = new("Frame", {
+		BackgroundColor3 = SETTINGS.Theme.Accent,
+		Size = UDim2.new( (default - min) / (max - min), 0, 1, 0),
+		Parent = bar
+	});
+	round(fill, 3)
+	local valLbl = new("TextLabel", {
+		Text = tostring(default),
+		Font = SETTINGS.Font,
+		TextSize = 13,
+		TextColor3 = SETTINGS.Theme.Text,
+		BackgroundTransparency = 1,
+		Position = UDim2.new(1, -40, 0, 0),
+		Size = UDim2.fromOffset(40, 20),
+		Parent = frm
+	})
+	local dragging = false
+	local function setFromPos(x)
+		local rel = math.clamp((x - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+		local num = math.floor( (rel * (max - min) + min) * 100 + 0.5) / 100
+		fill.Size = UDim2.new(rel, 0, 1, 0)
+		valLbl.Text = tostring(num)
+		callback(num)
+	end
+	bar.InputBegan:Connect(function(inp)
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true;
+			setFromPos(inp.Position.X)
+		end
+	end)
+	bar.InputEnded:Connect(function(inp)
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = false
+		end
+	end)
+	UserInput.InputChanged:Connect(function(inp)
+		if dragging and inp.UserInputType == Enum.UserInputType.MouseMovement then
+			setFromPos(inp.Position.X)
+		end
+	end)
+	if icon then
+		new("ImageLabel", {
+			BackgroundTransparency = 1,
+			Size = UDim2.fromOffset(18, 18),
+			Position = UDim2.fromOffset(6, 2),
+			Image = getIcon(icon),
+			Parent = frm
+		})
+	end
+end
+
+function Controls.input(container, text, icon, placeholder, callback)
+	local frm = addControl(container, 32)
+	new("TextLabel", {
+		Text = "",
+		BackgroundTransparency = 1,
+		Size = UDim2.new(0, 0, 0, 0),
+		Parent = frm
+	})
+	local box = new("TextBox", {
+		PlaceholderText = placeholder or "",
+		Text = "",
+		Font = SETTINGS.Font,
+		TextSize = 14,
+		TextColor3 = SETTINGS.Theme.Text,
+		PlaceholderColor3 = SETTINGS.Theme.PlaceHold,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(6, 0),
+		Size = UDim2.new(1, -12, 1, 0),
+		ClearTextOnFocus = false,
+		Parent = frm
+	})
+	box.FocusLost:Connect(function()
+		callback(box.Text)
+	end)
+	if icon then
+		new("ImageLabel", {
+			BackgroundTransparency = 1,
+			Size = UDim2.fromOffset(18, 18),
+			Position = UDim2.fromOffset(frm.AbsoluteSize.X - 24, 6),
+			Image = getIcon(icon),
+			Parent = frm
+		})
+	end
+	return box
+end
+
+function Controls.keybind(container, text, icon, defaultKey, callback)
+	local btn = addControl(container, 30)
+	new("TextLabel", {
+		Text = "   " .. text,
+		Font = SETTINGS.Font,
+		TextSize = 14,
+		TextColor3 = SETTINGS.Theme.Text,
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Parent = btn
+	})
+	local keyLbl = new("TextLabel", {
+		Text = defaultKey and tostring(defaultKey):gsub("Enum.KeyCode.", "") or "None",
+		Font = SETTINGS.Font,
+		TextSize = 14,
+		TextColor3 = SETTINGS.Theme.Text,
+		BackgroundTransparency = 1,
+		Position = UDim2.new(1, -60, 0, 0),
+		Size = UDim2.fromOffset(50, 30),
+		Parent = btn
+	})
+	local awaiting = false
+	btn.MouseButton1Click:Connect(function()
+		keyLbl.Text = "..."
+		awaiting = true
+	end)
+	UserInput.InputBegan:Connect(function(i, gpe)
+		if awaiting and not gpe then
+			awaiting = false
+			keyLbl.Text = tostring(i.KeyCode):gsub("Enum.KeyCode.", "")
+			callback(i.KeyCode)
+		end
+	end)
+	if icon then
+		new("ImageLabel", {
+			BackgroundTransparency = 1,
+			Size = UDim2.fromOffset(18, 18),
+			Position = UDim2.fromOffset(6, 6),
+			Image = getIcon(icon),
+			Parent = btn
+		})
+	end
+end
+
+function Controls.separator(container, label)
+	new("TextLabel", {
+		Text = label and ("-- " .. label .. " --") or " ",
+		Font = SETTINGS.Font,
+		TextSize = 13,
+		TextColor3 = SETTINGS.Theme.PlaceHold,
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 0, 20),
+		Parent = container
+	})
+end
+
+--------------------------------------------------------------------
+return fluent
